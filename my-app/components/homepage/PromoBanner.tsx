@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 
 interface PromoBannerProps {
-    collectionNumber: string;
+    collectionNumber?: string;
     title: string;
     subtitle?: string;
     description: string;
@@ -12,6 +12,7 @@ interface PromoBannerProps {
     ctaLink: string;
     imagePosition?: 'left' | 'right';
     theme?: 'dark-teal' | 'light' | 'dark';
+    backgroundColor?: string;
 }
 
 export default function PromoBanner({
@@ -24,6 +25,7 @@ export default function PromoBanner({
     ctaLink,
     imagePosition = 'right',
     theme = 'dark-teal',
+    backgroundColor,
 }: PromoBannerProps) {
     const isImageRight = imagePosition === 'right';
 
@@ -56,14 +58,16 @@ export default function PromoBanner({
             <div className={`grid grid-cols-1 lg:grid-cols-2 min-h-[500px] md:min-h-[600px]`}>
                 {/* Content Side */}
                 <div
-                    className={`${styles.bg} ${isImageRight ? 'order-1' : 'order-2 lg:order-2'} 
+                    className={`${backgroundColor || styles.bg} ${isImageRight ? 'order-1' : 'order-2 lg:order-2'} 
             flex items-center justify-center p-8 md:p-12 lg:p-16`}
                 >
                     <div className="max-w-md">
                         {/* Collection Label */}
-                        <p className={`text-xs tracking-[0.2em] uppercase ${styles.label} mb-6`}>
-                            {collectionNumber}
-                        </p>
+                        {collectionNumber && (
+                            <p className={`text-xs tracking-[0.2em] uppercase ${styles.label} mb-6`}>
+                                {collectionNumber}
+                            </p>
+                        )}
 
                         {/* Title */}
                         <h2 className={`text-4xl md:text-5xl lg:text-6xl font-bold ${styles.text} leading-tight mb-6`}>
