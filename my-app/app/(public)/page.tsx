@@ -4,40 +4,42 @@ import PromoBanner from '@/components/homepage/PromoBanner';
 import StyleInspiration from '@/components/homepage/StyleInspiration';
 
 export default function HomePage() {
-    return (
-        <>
-            {/* Hero Section */}
-            <Hero />
+  return (
+    <>
+      {/* Hero Section */}
+      <Hero />
 
-            {/* Featured Collection */}
-            <FeaturedCollection />
+      {/* Featured Collection */}
+      <FeaturedCollection />
 
-            {/* Concrete Jungle Banner */}
-            <PromoBanner
-                title="CONCRETE JUNGLE"
-                description="Embrace the urban landscape with our rugged, military-inspired collection. Built for the streets, designed for adventure."
-                image="/banners/concrete-jungle.jpg"
-                ctaText="EXPLORE COLLECTION"
-                ctaLink="/streetwear"
-                imagePosition="left"
-                theme="dark"
-                backgroundColor="bg-[#5A6F4C]"
-            />
+      {/* Concrete Jungle Banner */}
+      <PromoBanner
+        collectionNumber="COLLECTION 01"
+        title="CONCRETE"
+        subtitle="JUNGLE"
+        description="Hard-wearing utilitarian pieces designed for the daily grind. Featuring ripstop fabrics and modular pocket systems."
+        image="/banners/concrete-jungle.jpg"
+        ctaText="VIEW COLLECTION"
+        ctaLink="/streetwear"
+        imagePosition="right"
+        theme="dark-teal"
+      />
 
-            {/* Neon Nights Banner */}
-            <PromoBanner
-                title="NEON NIGHTS"
-                description="Light up the night with our bold, contemporary pieces. Perfect for those who dare to stand out in the crowd."
-                image="/banners/neon-nights.jpg"
-                ctaText="SHOP NOW"
-                ctaLink="/new-arrivals"
-                imagePosition="right"
-                theme="dark"
-                backgroundColor="bg-slate-900"
-            />
+      {/* Neon Nights Banner */}
+      <PromoBanner
+        collectionNumber="COLLECTION 02"
+        title="NEON"
+        subtitle="NIGHTS"
+        description="Reflective details and cyber-inspired graphics for those who come alive when the sun goes down."
+        image="/banners/neon-nights.jpg"
+        ctaText="VIEW COLLECTION"
+        ctaLink="/new-arrivals"
+        imagePosition="left"
+        theme="light"
+      />
 
-            {/* Style Inspiration */}
-            <StyleInspiration />
-        </>
-    );
+      {/* Style Inspiration */}
+      <StyleInspiration />
+    </>
+  );
 }
