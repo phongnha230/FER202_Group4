@@ -4,11 +4,14 @@ import Link from 'next/link';
 import { ShoppingCart, Search, Menu, User, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { usePathname } from 'next/navigation';
+import clsx from 'clsx';
 
 import { useState } from 'react';
 
 export default function Header() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const pathname = usePathname();
 
     const navLinks = [
         { href: '/', label: 'Home' },
@@ -32,7 +35,12 @@ export default function Header() {
                             <Link
                                 key={link.href}
                                 href={link.href}
-                                className="text-sm font-medium transition-colors hover:text-primary"
+                                className={clsx(
+                                    'text-sm font-medium transition-colors',
+                                    pathname === link.href
+                                        ? 'text-blue-500'
+                                        : 'text-gray-700 hover:text-black'
+                                )}
                             >
                                 {link.label}
                             </Link>
@@ -91,7 +99,12 @@ export default function Header() {
                                 <Link
                                     key={link.href}
                                     href={link.href}
-                                    className="text-sm font-medium transition-colors hover:text-primary"
+                                    className={clsx(
+                                        'text-sm font-medium transition-colors',
+                                        pathname === link.href
+                                            ? 'text-blue-500'
+                                            : 'text-gray-700 hover:text-black'
+                                    )}
                                     onClick={() => setMobileMenuOpen(false)}
                                 >
                                     {link.label}

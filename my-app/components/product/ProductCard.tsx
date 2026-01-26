@@ -24,11 +24,17 @@ export default function ProductCard({ product }: ProductCardProps) {
                         className="object-cover transition-transform duration-500 group-hover:scale-110"
                     />
 
-                    {!product.inStock && (
-                        <Badge className="absolute top-2 left-2 bg-red-500">
-                            Out of Stock
-                        </Badge>
-                    )}
+                    <div className="absolute top-2 left-2 flex flex-col gap-2">
+                        {product.salePrice && (
+                            <Badge className="bg-red-600 text-white">SALE</Badge>
+                        )}
+                        {product.isNew && (
+                            <Badge className="bg-blue-600 text-white">NEW</Badge>
+                        )}
+                        {!product.inStock && (
+                            <Badge className="bg-red-500 text-white">Out of Stock</Badge>
+                        )}
+                    </div>
 
                     {/* Wishlist Button */}
                     <button
@@ -52,9 +58,20 @@ export default function ProductCard({ product }: ProductCardProps) {
                     <h3 className="font-semibold text-lg mb-2 line-clamp-1">
                         {product.name}
                     </h3>
-                    <p className="text-xl font-bold">
-                        ${product.price.toFixed(2)}
-                    </p>
+                    {product.salePrice ? (
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-xl font-bold text-red-600">
+                                ${product.salePrice.toFixed(2)}
+                            </span>
+                            <span className="text-sm text-muted-foreground line-through">
+                                ${product.price.toFixed(2)}
+                            </span>
+                        </div>
+                    ) : (
+                        <p className="text-xl font-bold">
+                            ${product.price.toFixed(2)}
+                        </p>
+                    )}
                 </Link>
             </CardContent>
 
