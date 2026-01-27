@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { Product } from '@/mock/products';
+import { addToCart as addItemToCart } from '@/lib/cart';
 
 interface ProductCardProps {
     product: Product;
@@ -79,6 +80,20 @@ export default function ProductCard({ product }: ProductCardProps) {
                 <Button
                     className="w-full btn-primary"
                     disabled={!product.inStock}
+                    onClick={(e) => {
+                        e.preventDefault(); // Prevent navigating to product page
+                        addItemToCart({
+                            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            productId: product.id,
+                            name: product.name,
+                            price: product.salePrice || product.price,
+                            image: product.image,
+                            color: product.colors?.[0] || 'Default',
+                            size: product.sizes?.[0] || 'Default',
+                            quantity: 1,
+                        });
+                        // Optional: Show toast or feedback
+                    }}
                 >
                     <ShoppingCart className="h-4 w-4 mr-2" />
                     {product.inStock ? 'Add to Cart' : 'Out of Stock'}
