@@ -72,7 +72,7 @@ export default function Page() {
 
     return (
         <main className="py-10 md:py-12">
-            <div className="container-custom">
+            <div className="container-custom page-container">
                 <div className="relative overflow-hidden rounded-xl mb-8 shadow-lg ring-1 ring-black/5">
                     <div className="absolute inset-0 bg-gradient-to-br from-red-600 via-red-600 to-red-700" />
                     <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_20%_20%,white,transparent_35%),radial-gradient(circle_at_80%_30%,white,transparent_35%),radial-gradient(circle_at_50%_80%,white,transparent_35%)]" />

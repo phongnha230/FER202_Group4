@@ -73,7 +73,7 @@ export default function Page() {
 
     return (
         <main className="py-10 md:py-12">
-            <div className="container-custom">
+            <div className="container-custom page-container">
                 {/* Header */}
                 <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between mb-6 md:mb-8">
                     <div>
