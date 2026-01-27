@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { SalesChart } from "@/components/admin/SalesChart";
 
 const stats = [
     {
@@ -158,32 +159,8 @@ export default function DashboardPage() {
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="h-[300px] flex items-end justify-center pb-4 relative">
-                        {/* Simple CSS Graph Representation for "Placeholer" */}
-                        <div className="w-full h-full relative border-l border-b border-slate-100">
-                            <svg viewBox="0 0 100 40" className="w-full h-full absolute bottom-0 left-0" preserveAspectRatio="none">
-                                {/* Mock Curve Blue */}
-                                <path d="M0 40 Q 25 20, 50 25 T 100 10" fill="none" stroke="#2563eb" strokeWidth="0.5" />
-                                <path d="M0 40 L 0 40 Q 25 20, 50 25 T 100 10 L 100 40 Z" fill="url(#gradientBlue)" opacity="0.1" />
-
-                                {/* Mock Curve Gray */}
-                                <path d="M0 40 Q 40 40, 60 30 T 100 25" fill="none" stroke="#cbd5e1" strokeWidth="0.5" strokeDasharray="1 1" />
-
-                                <defs>
-                                    <linearGradient id="gradientBlue" x1="0" x2="0" y1="0" y2="1">
-                                        <stop offset="0%" stopColor="#2563eb" />
-                                        <stop offset="100%" stopColor="transparent" />
-                                    </linearGradient>
-                                </defs>
-                            </svg>
-                            <div className="absolute -bottom-6 left-0 right-0 flex justify-between text-[10px] text-slate-400 font-bold uppercase">
-                                <span>01 OCT</span>
-                                <span>08 OCT</span>
-                                <span>15 OCT</span>
-                                <span>22 OCT</span>
-                                <span>30 OCT</span>
-                            </div>
-                        </div>
+                    <CardContent className="h-[300px] w-full pt-4 pl-0 pr-2">
+                        <SalesChart />
                     </CardContent>
                 </Card>
 

@@ -83,11 +83,18 @@ export function Sidebar() {
             </div>
 
             <div className="border-t p-4">
-                <Button variant="outline" className="w-full justify-start gap-2" asChild>
-                    <Link href="/api/auth/signout">
-                        <LogOut className="h-4 w-4" />
-                        Sign Out
-                    </Link>
+                <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => {
+                        // Clear the fake session cookie
+                        document.cookie = "admin_session=; path=/; max-age=0";
+                        // Redirect to login
+                        window.location.href = "/admin/login";
+                    }}
+                >
+                    <LogOut className="h-4 w-4" />
+                    Sign Out
                 </Button>
             </div>
         </div>
