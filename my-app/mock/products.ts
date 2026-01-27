@@ -8,6 +8,10 @@ export interface Product {
     slug: string;
     featured?: boolean;
     inStock?: boolean;
+    colors?: string[];
+    sizes?: string[];
+    isNew?: boolean;
+    salePrice?: number;
 }
 
 export const products: Product[] = [
@@ -21,6 +25,9 @@ export const products: Product[] = [
         slug: 'oversized-knit-sweater',
         featured: true,
         inStock: true,
+        colors: ['Gray', 'Black', 'Beige'],
+        sizes: ['S', 'M', 'L', 'XL'],
+        isNew: true,
     },
     {
         id: '2',
@@ -32,6 +39,9 @@ export const products: Product[] = [
         slug: 'cargo-utility-pants',
         featured: true,
         inStock: true,
+        colors: ['Olive', 'Black', 'Khaki'],
+        sizes: ['S', 'M', 'L'],
+        isNew: true,
     },
     {
         id: '3',
@@ -43,6 +53,9 @@ export const products: Product[] = [
         slug: 'essential-white-tee',
         featured: true,
         inStock: true,
+        colors: ['White', 'Black'],
+        sizes: ['S', 'M', 'L', 'XL'],
+        isNew: true,
     },
     {
         id: '4',
@@ -54,6 +67,9 @@ export const products: Product[] = [
         slug: 'urban-hoodie',
         featured: true,
         inStock: true,
+        colors: ['Black', 'Gray', 'Navy'],
+        sizes: ['S', 'M', 'L'],
+        salePrice: 79.99,
     },
     {
         id: '5',
@@ -65,6 +81,9 @@ export const products: Product[] = [
         slug: 'denim-jacket',
         featured: false,
         inStock: true,
+        colors: ['Blue', 'Black'],
+        sizes: ['M', 'L', 'XL'],
+        salePrice: 129.99,
     },
     {
         id: '6',
@@ -76,6 +95,9 @@ export const products: Product[] = [
         slug: 'graphic-print-tee',
         featured: false,
         inStock: true,
+        colors: ['Black', 'White'],
+        sizes: ['S', 'M', 'L'],
+        salePrice: 44.99,
     },
     {
         id: '7',
@@ -87,6 +109,9 @@ export const products: Product[] = [
         slug: 'slim-fit-jeans',
         featured: false,
         inStock: true,
+        colors: ['Blue', 'Black'],
+        sizes: ['S', 'M', 'L', 'XL'],
+        salePrice: 79.99,
     },
     {
         id: '8',
@@ -98,6 +123,8 @@ export const products: Product[] = [
         slug: 'bomber-jacket',
         featured: false,
         inStock: false,
+        colors: ['Black', 'Green'],
+        sizes: ['M', 'L'],
     },
 ];
 

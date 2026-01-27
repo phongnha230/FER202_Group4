@@ -1,14 +1,17 @@
 "use client";
 
-import Link from "next/link";
-import { ShoppingCart, Search, Menu, User, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import Link from 'next/link';
+import { ShoppingCart, Search, Menu, User, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { usePathname } from 'next/navigation';
+import clsx from 'clsx';
 
 import { useState } from "react";
 
 export default function Header() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const pathname = usePathname();
 
   const navLinks = [
     { href: "/", label: "Home" },
@@ -26,23 +29,23 @@ export default function Header() {
             <span className="text-2xl font-bold">UrbanNest</span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-8">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="relative text-sm font-medium transition-colors
-             hover:text-red-500
-             after:absolute after:left-0 after:-bottom-1
-             after:h-[2px] after:w-0 after:bg-black
-             after:transition-all after:duration-300
-             hover:after:w-full"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+                    {/* Desktop Navigation */}
+                    <nav className="hidden md:flex items-center space-x-8">
+                        {navLinks.map((link) => (
+                            <Link
+                                key={link.href}
+                                href={link.href}
+                                className={clsx(
+                                    'text-sm font-medium transition-colors',
+                                    pathname === link.href
+                                        ? 'text-blue-500'
+                                        : 'text-gray-700 hover:text-black'
+                                )}
+                            >
+                                {link.label}
+                            </Link>
+                        ))}
+                    </nav>
 
           {/* Right Side Actions */}
           <div className="flex items-center space-x-4">
@@ -85,27 +88,35 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t animate-fade-in-down">
-            <nav className="flex flex-col space-y-4">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="text-sm font-medium transition-colors hover:text-primary"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {link.label}
-                </Link>
-              ))}
-              <div className="pt-4 border-t">
-                <Input placeholder="Search products..." className="w-full" />
-              </div>
-            </nav>
-          </div>
-        )}
-      </div>
-    </header>
-  );
+                {/* Mobile Menu */}
+                {mobileMenuOpen && (
+                    <div className="md:hidden py-4 border-t animate-fade-in-down">
+                        <nav className="flex flex-col space-y-4">
+                            {navLinks.map((link) => (
+                                <Link
+                                    key={link.href}
+                                    href={link.href}
+                                    className={clsx(
+                                        'text-sm font-medium transition-colors',
+                                        pathname === link.href
+                                            ? 'text-blue-500'
+                                            : 'text-gray-700 hover:text-black'
+                                    )}
+                                    onClick={() => setMobileMenuOpen(false)}
+                                >
+                                    {link.label}
+                                </Link>
+                            ))}
+                            <div className="pt-4 border-t">
+                                <Input
+                                    placeholder="Search products..."
+                                    className="w-full"
+                                />
+                            </div>
+                        </nav>
+                    </div>
+                )}
+            </div>
+        </header>
+    );
 }
