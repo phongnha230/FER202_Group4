@@ -1,0 +1,285 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { Star, Camera, X, ThumbsUp, ThumbsDown, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { products } from "@/mock/products";
+import clsx from "clsx";
+
+export default function WriteReviewPage() {
+    const params = useParams();
+    const router = useRouter();
+    const orderId = params.id as string;
+
+    // Mock finding the product based on orderId (simplified for demo)
+    // In a real app, you'd fetch order details
+    const product = useMemo(() => {
+        // Return a default product if not found
+        return products.find(p => p.id === '3') || products[0];
+    }, []);
+
+    const [rating, setRating] = useState(0);
+    const [hoverRating, setHoverRating] = useState(0);
+    const [fit, setFit] = useState(50); // 0 (Small), 50 (True to Size), 100 (Large)
+    const [title, setTitle] = useState("");
+    const [content, setContent] = useState("");
+
+    const handleRatingClick = (val: number) => setRating(val);
+
+    const fitLabel = useMemo(() => {
+        if (fit < 40) return "Runs Small";
+        if (fit > 60) return "Runs Large";
+        return "True to Size";
+    }, [fit]);
+
+    return (
+        <div className="container-custom py-12 max-w-7xl">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+
+                {/* Left Column: Form */}
+                <div className="lg:col-span-7 space-y-10">
+                    <div>
+                        <h1 className="text-4xl font-black tracking-tight mb-2 uppercase italic text-slate-900">RATE YOUR PICKUP</h1>
+                        <p className="text-slate-500 font-medium">Tell us about the fit, feel, and quality of your new gear.</p>
+                    </div>
+
+                    {/* Product Summary Card */}
+                    <div className="bg-white border border-slate-100 rounded-xl p-4 flex items-center gap-6 shadow-sm">
+                        <div className="relative h-20 w-20 bg-slate-50 rounded-lg overflow-hidden flex-shrink-0">
+                            <Image src={product.image} alt={product.name} fill className="object-cover" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-slate-900 text-lg">{product.name}</h3>
+                            <p className="text-sm text-slate-500">Size L • Order #45920</p>
+                        </div>
+                    </div>
+
+                    {/* Rating Section */}
+                    <div className="space-y-4">
+                        <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Overall Rating</label>
+                        <div className="flex gap-2">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                    key={star}
+                                    type="button"
+                                    className="focus:outline-none transition-transform active:scale-95"
+                                    onMouseEnter={() => setHoverRating(star)}
+                                    onMouseLeave={() => setHoverRating(0)}
+                                    onClick={() => handleRatingClick(star)}
+                                >
+                                    <Star
+                                        className={clsx(
+                                            "w-10 h-10 transition-colors",
+                                            (hoverRating || rating) >= star ? "fill-blue-600 text-blue-600" : "text-slate-200"
+                                        )}
+                                    />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Fit Section */}
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-end">
+                            <label className="text-xs font-bold uppercase tracking-widest text-slate-400">How's the fit?</label>
+                            <span className="text-sm font-bold text-blue-600">{fitLabel}</span>
+                        </div>
+                        <div className="relative pt-2 px-0.5">
+                            {/* Visual Track Indicators */}
+                            <div className="absolute top-[12px] left-0 right-0 flex justify-between pointer-events-none px-0.5">
+                                {[0, 50, 100].map((step) => (
+                                    <div
+                                        key={step}
+                                        className={clsx(
+                                            "w-2.5 h-2.5 rounded-full border-2 transition-colors",
+                                            fit === step ? "bg-blue-600 border-blue-600" : "bg-white border-slate-200"
+                                        )}
+                                    />
+                                ))}
+                            </div>
+
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                step="50"
+                                value={fit}
+                                onChange={(e) => setFit(parseInt(e.target.value))}
+                                className="w-full h-1 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600 relative z-10"
+                            />
+
+                            <div className="flex justify-between mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                <button
+                                    onClick={() => setFit(0)}
+                                    className={clsx("hover:text-blue-600 transition-colors uppercase", fit === 0 && "text-blue-600")}
+                                >
+                                    Runs Small
+                                </button>
+                                <button
+                                    onClick={() => setFit(50)}
+                                    className={clsx("hover:text-blue-600 transition-colors uppercase", fit === 50 && "text-blue-600")}
+                                >
+                                    True to Size
+                                </button>
+                                <button
+                                    onClick={() => setFit(100)}
+                                    className={clsx("hover:text-blue-600 transition-colors uppercase", fit === 100 && "text-blue-600")}
+                                >
+                                    Runs Large
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Title & Review */}
+                    <div className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Review Title</label>
+                            <input
+                                type="text"
+                                placeholder="e.g. Best cargos I've ever owned"
+                                className="w-full border-b border-slate-200 py-3 text-lg font-medium focus:outline-none focus:border-blue-600 transition-colors placeholder:text-slate-300"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="space-y-2 text-right">
+                            <label className="text-xs font-bold uppercase tracking-widest text-slate-400 text-left block">Your Review</label>
+                            <textarea
+                                placeholder="How was the quality? What did you like or dislike?"
+                                rows={4}
+                                className="w-full border border-slate-100 rounded-xl p-4 text-slate-700 bg-slate-50 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-600/10 focus:border-blue-600 transition-all placeholder:text-slate-400"
+                                value={content}
+                                onChange={(e) => setContent(e.target.value)}
+                            />
+                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Minimum 20 characters</span>
+                        </div>
+                    </div>
+
+                    {/* Image Upload */}
+                    <div className="space-y-4">
+                        <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Show off your fit</label>
+                        <div className="border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer group">
+                            <div className="bg-white w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm group-hover:scale-110 transition-transform">
+                                <Camera className="w-6 h-6 text-blue-600" />
+                            </div>
+                            <h4 className="font-bold text-slate-900 mb-1">Click to upload or drag and drop</h4>
+                            <p className="text-xs text-slate-400">SVG, PNG, JPG or GIF (max. 5MB)</p>
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-8 pt-6">
+                        <Button
+                            className="bg-blue-700 hover:bg-blue-800 text-white font-bold h-14 px-12 rounded-lg transition-all active:scale-95 shadow-lg shadow-blue-200"
+                            onClick={() => router.push('/my-orders')}
+                        >
+                            POST REVIEW
+                        </Button>
+                        <button
+                            className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors"
+                            onClick={() => router.back()}
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+
+                {/* Right Column: Live Preview */}
+                <div className="lg:col-span-5 relative">
+                    <div className="sticky top-24 space-y-6">
+                        <div className="flex items-center gap-2 text-blue-600 font-bold text-xs uppercase tracking-widest">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+                            Live Preview
+                        </div>
+
+                        {/* Preview Card */}
+                        <div className="bg-white border border-slate-100 rounded-3xl p-8 shadow-2xl shadow-slate-200/50 max-w-md mx-auto relative overflow-hidden">
+                            {/* User Info */}
+                            <div className="flex justify-between items-start mb-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden">
+                                        <div className="w-full h-full bg-slate-200 animate-pulse" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900">You</h4>
+                                        <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-black uppercase">
+                                            <div className="w-3 h-3 rounded-full bg-emerald-500 flex items-center justify-center">
+                                                <X className="w-2 h-2 text-white rotate-45 stroke-[4]" />
+                                            </div>
+                                            Verified Buyer
+                                        </div>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-300 uppercase">Just now</span>
+                            </div>
+
+                            {/* Rating Stars */}
+                            <div className="flex gap-1 mb-4">
+                                {[1, 2, 3, 4, 5].map((s) => (
+                                    <Star
+                                        key={s}
+                                        className={clsx(
+                                            "w-4 h-4",
+                                            s <= (rating || 4) ? "fill-blue-600 text-blue-600" : "text-slate-200"
+                                        )}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Content */}
+                            <h2 className="text-xl font-black text-slate-900 mb-3 leading-tight">
+                                {title || "Best cargos I've ever owned"}
+                            </h2>
+                            <p className="text-sm text-slate-500 leading-relaxed mb-6">
+                                {content || "Honestly, I was skeptical about the fit at first, but these are perfect. The material feels heavy and durable, exactly what I wanted for a daily driver. Pockets are super functional too."}
+                            </p>
+
+                            {/* Review Image (Mock) */}
+                            <div className="relative aspect-[4/3] w-32 bg-slate-100 rounded-xl overflow-hidden mb-6 group">
+                                <Image
+                                    src={product.image}
+                                    alt="User upload"
+                                    fill
+                                    className="object-cover transition-transform group-hover:scale-110"
+                                />
+                            </div>
+
+                            {/* Review Footer */}
+                            <div className="flex items-center justify-between pt-6 border-t border-slate-50">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Was this helpful?</span>
+                                <div className="flex gap-4">
+                                    <button className="flex items-center gap-1.5 text-slate-400 hover:text-slate-900 transition-colors">
+                                        <ThumbsUp className="w-3.5 h-3.5" />
+                                        <span className="text-[10px] font-bold">0</span>
+                                    </button>
+                                    <button className="flex items-center gap-1.5 text-slate-400 hover:text-slate-900 transition-colors">
+                                        <ThumbsDown className="w-3.5 h-3.5" />
+                                        <span className="text-[10px] font-bold">0</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Tip Card */}
+                        <div className="bg-blue-50/50 border border-blue-100/50 rounded-2xl p-6 max-w-md mx-auto flex gap-4">
+                            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                                <Info className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                                <h5 className="font-bold text-blue-900 text-xs mb-1">Pro Tip</h5>
+                                <p className="text-[11px] text-blue-700/70 leading-relaxed">
+                                    Mentioning your height and weight helps others find their perfect size!
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
