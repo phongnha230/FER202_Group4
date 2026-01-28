@@ -132,8 +132,10 @@ export default function OrderConfirmationPage() {
             </div>
 
             <div className="text-center space-y-4">
-                <Button className="w-full sm:w-auto min-w-[200px]" size="lg">
-                    Track Your Order
+                <Button className="w-full sm:w-auto min-w-[200px]" size="lg" asChild>
+                    <Link href="/my-orders">
+                        Track Your Order
+                    </Link>
                 </Button>
                 <div className="flex justify-center gap-6 text-xs text-gray-500">
                     <Link href="#" className="hover:underline">Help Center</Link>
