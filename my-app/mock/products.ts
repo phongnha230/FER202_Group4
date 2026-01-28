@@ -76,7 +76,7 @@ export const products: Product[] = [
         name: 'Denim Jacket',
         category: 'Jackets',
         price: 149.99,
-        image: '/products/denim-jacket.jpg',
+        image: '/products/denim-jacket.png',
         description: 'Vintage-style denim jacket for all seasons',
         slug: 'denim-jacket',
         featured: false,
@@ -90,7 +90,7 @@ export const products: Product[] = [
         name: 'Graphic Print Tee',
         category: 'T-Shirts',
         price: 49.99,
-        image: '/products/graphic-tee.jpg',
+        image: '/products/graphic-tee.png',
         description: 'Bold graphic print t-shirt with unique design',
         slug: 'graphic-print-tee',
         featured: false,
@@ -104,7 +104,7 @@ export const products: Product[] = [
         name: 'Slim Fit Jeans',
         category: 'Pants',
         price: 89.99,
-        image: '/products/jeans-blue.jpg',
+        image: '/products/jeans-blue.png',
         description: 'Classic slim fit jeans in dark wash',
         slug: 'slim-fit-jeans',
         featured: false,
@@ -118,7 +118,7 @@ export const products: Product[] = [
         name: 'Bomber Jacket',
         category: 'Jackets',
         price: 179.99,
-        image: '/products/bomber-jacket.jpg',
+        image: '/products/bomber-jacket.png',
         description: 'Premium bomber jacket with satin lining',
         slug: 'bomber-jacket',
         featured: false,
@@ -126,6 +126,7 @@ export const products: Product[] = [
         colors: ['Black', 'Green'],
         sizes: ['M', 'L'],
     },
+    
 ];
 
 export const getFeaturedProducts = () => products.filter(p => p.featured);
