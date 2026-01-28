@@ -8,7 +8,7 @@ export default function FeaturedCollection() {
     const featuredProducts = getFeaturedProducts();
 
     return (
-        <section className="py-20 md:py-28 lg:py-36 bg-[#f8f8f6]">
+        <section className="py-20 md:py-28 lg:py-36 bg-[#f8f8f6] animate-scale-up-bottom">
             <div className="container-custom">
                 {/* Section Header - Manifesto Style */}
                 <div className="text-center mb-16 md:mb-20 lg:mb-24 animate-fade-in-up">
