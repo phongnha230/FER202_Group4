@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Product } from '@/mock/products';
 import { Button } from '@/components/ui/button';
 import { Heart, Truck, RefreshCw, ShieldCheck } from 'lucide-react';
 import VariantSelector from './VariantSelector';
 import { useRouter } from 'next/navigation';
-import { addToCart as addItemToCart } from '@/lib/cart';
+import { addToCart as addItemToCart, getCart } from '@/lib/cart'; // Added getCart
+import CartSuccessModal from '../cart/CartSuccessModal'; // Import Modal
+import { CartItemType } from '@/components/cart/cart-types';
 import {
     Accordion,
     AccordionContent,
@@ -17,26 +19,38 @@ import { Badge } from '@/components/ui/badge';
 
 interface ProductInfoProps {
     product: Product;
+    selectedColor: string;
+    onColorChange: (color: string) => void;
 }
 
-export default function ProductInfo({ product }: ProductInfoProps) {
-    const [selectedColor, setSelectedColor] = useState(product.colors?.[0] || '');
+export default function ProductInfo({ product, selectedColor, onColorChange }: ProductInfoProps) {
+    // const [selectedColor, setSelectedColor] = useState(product.colors?.[0] || ''); // Lifted up
     const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] || '');
     const router = useRouter();
 
-    const handleAddToCart = () => {
-        addItemToCart({
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            productId: product.id,
-            name: product.name,
-            price: product.salePrice || product.price,
-            image: product.image,
-            color: selectedColor,
-            size: selectedSize,
-            quantity: 1,
-        });
-        router.push('/cart');
+    // Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [lastAddedItem, setLastAddedItem] = useState<CartItemType | null>(null);
+    const [cartCount, setCartCount] = useState(0);
+    const [cartTotal, setCartTotal] = useState(0);
+
+    const updateCartData = () => {
+        if (typeof window === 'undefined') return;
+        const cart = getCart();
+        setCartCount(cart.reduce((total, item) => total + item.quantity, 0));
+        setCartTotal(cart.reduce((total, item) => total + (item.price * item.quantity), 0));
     };
+
+    useEffect(() => {
+        updateCartData();
+
+        const handleCartUpdate = () => updateCartData();
+        window.addEventListener('cart-updated', handleCartUpdate);
+        return () => window.removeEventListener('cart-updated', handleCartUpdate);
+    }, []);
+
+
+
 
     return (
         <div className="flex flex-col gap-6">
@@ -79,7 +93,7 @@ export default function ProductInfo({ product }: ProductInfoProps) {
                         type="color"
                         variants={product.colors}
                         selected={selectedColor}
-                        onSelect={setSelectedColor}
+                        onSelect={onColorChange}
                     />
                 )}
 
@@ -102,10 +116,51 @@ export default function ProductInfo({ product }: ProductInfoProps) {
 
             {/* Actions */}
             <div className="flex gap-4 mt-2">
-                <Button className="flex-1 h-12 text-base" size="lg" onClick={handleAddToCart}>
-                    Add to Bag
+                <Button
+                    variant="outline"
+                    className="flex-1 h-12 text-base border-black hover:bg-black hover:text-white transition-colors"
+                    size="lg"
+                    onClick={() => {
+                        const newItem: CartItemType = {
+                            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            productId: product.id,
+                            name: product.name,
+                            price: product.salePrice || product.price,
+                            image: product.image,
+                            color: selectedColor,
+                            baseColor: product.colors?.[0], // Pass base color for filtering logic
+                            size: selectedSize,
+                            quantity: 1,
+                        };
+                        const addedItem = addItemToCart(newItem); // Capture returned item
+                        setLastAddedItem(addedItem || newItem); // Use returned item with correct ID
+                        // updateCartData(); // Removed manual call, relying on event listener
+                        setIsModalOpen(true);
+                    }}
+                >
+                    Add to Cart
                 </Button>
-                <Button variant="outline" size="icon" className="h-12 w-12 shrink-0">
+                <Button
+                    className="flex-1 h-12 text-base btn-primary"
+                    size="lg"
+                    onClick={() => {
+                        addItemToCart({
+                            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            productId: product.id,
+                            name: product.name,
+                            price: product.salePrice || product.price,
+                            image: product.image,
+                            color: selectedColor,
+                            baseColor: product.colors?.[0], // Pass base color
+                            size: selectedSize,
+                            quantity: 1,
+                        });
+                        router.push('/checkout');
+                    }}
+                >
+                    Buy Now
+                </Button>
+                <Button variant="outline" size="icon" className="h-12 w-12 shrink-0 border-gray-200">
                     <Heart className="h-5 w-5" />
                 </Button>
             </div>
@@ -157,6 +212,14 @@ export default function ProductInfo({ product }: ProductInfoProps) {
                     </AccordionContent>
                 </AccordionItem>
             </Accordion>
+
+            <CartSuccessModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                product={lastAddedItem}
+                cartCount={cartCount}
+                totalPrice={cartTotal}
+            />
         </div>
     );
 }

@@ -9,4 +9,6 @@ export interface CartItemType {
     quantity: number;
     maxStock?: number;
     lowStock?: boolean;
+    note?: string; // Added note field
+    baseColor?: string; // Added to determine if filter should be applied
 }

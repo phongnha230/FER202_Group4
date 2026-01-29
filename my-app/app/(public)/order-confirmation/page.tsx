@@ -8,6 +8,8 @@ import { notFound } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getCart, clearCart } from '@/lib/cart';
 import { CartItemType } from '@/components/cart/cart-types';
+import { getColorFilter } from '@/lib/utils';
+import { products } from '@/mock/products';
 
 export default function OrderConfirmationPage() {
     const [cartItems, setCartItems] = useState<CartItemType[]>([]);
@@ -70,6 +72,11 @@ export default function OrderConfirmationPage() {
                                         alt={item.name}
                                         fill
                                         className="object-cover"
+                                        style={
+                                            item.color !== (item.baseColor || products.find(p => p.id === item.productId)?.colors?.[0])
+                                                ? getColorFilter(item.color, item.baseColor || products.find(p => p.id === item.productId)?.colors?.[0])
+                                                : undefined
+                                        }
                                     />
                                 </div>
                                 <div className="flex-1">

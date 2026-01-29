@@ -1,18 +1,17 @@
 import { notFound } from 'next/navigation';
 import { getProductBySlug } from '@/mock/products';
-import ProductGallery from '@/components/product/ProductGallery';
-import ProductInfo from '@/components/product/ProductInfo';
+import ProductContainer from '@/components/product/ProductContainer';
+import ProductReviews from '@/components/product/ProductReviews'; // Import
 import Link from 'next/link';
 
-interface ProductPageProps {
-    params: {
+// In Next.js 15+, params is a Promise.
+type Props = {
+    params: Promise<{
         slug: string;
-    };
-}
+    }>;
+};
 
-// In Next.js 15+ or latest 14, params might be a promise or direct, checking usage. 
-// Assuming standard Page props for now.
-export default async function ProductPage({ params }: ProductPageProps) {
+export default async function ProductPage({ params }: Props) {
     const { slug } = await params;
     const product = getProductBySlug(slug);
 
@@ -42,10 +41,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </ol>
             </nav>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-16">
-                <ProductGallery product={product} />
-                <ProductInfo product={product} />
-            </div>
+            <ProductContainer product={product} />
+
+            <ProductReviews />
         </div>
     );
 }
