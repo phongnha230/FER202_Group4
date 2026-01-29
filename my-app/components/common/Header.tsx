@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { ShoppingCart, Search, Menu, User, X } from 'lucide-react';
+import { ShoppingCart, Search, Menu, User, X, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { usePathname } from 'next/navigation';
@@ -85,6 +85,13 @@ export default function Header() {
             <Button variant="ghost" size="icon" asChild>
               <Link href="/login">
                 <User className="h-5 w-5" />
+              </Link>
+            </Button>
+
+            {/* My Orders */}
+            <Button variant="ghost" size="icon" asChild title="My Orders">
+              <Link href="/my-orders">
+                <ShoppingBag className="h-5 w-5" />
               </Link>
             </Button>
 
