@@ -26,8 +26,30 @@ export default function WriteReviewPage() {
     const [fit, setFit] = useState(50); // 0 (Small), 50 (True to Size), 100 (Large)
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
+    const [images, setImages] = useState<string[]>([]);
 
     const handleRatingClick = (val: number) => setRating(val);
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files) return;
+
+        const newImages = [...images];
+        Array.from(files).forEach(file => {
+            if (newImages.length >= 5) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (event.target?.result) {
+                    setImages(prev => [...prev, event.target!.result as string].slice(0, 5));
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const handleRemoveImage = (index: number) => {
+        setImages(prev => prev.filter((_, i) => i !== index));
+    };
 
     const fitLabel = useMemo(() => {
         if (fit < 40) return "Runs Small";
@@ -84,23 +106,10 @@ export default function WriteReviewPage() {
                     {/* Fit Section */}
                     <div className="space-y-6">
                         <div className="flex justify-between items-end">
-                            <label className="text-xs font-bold uppercase tracking-widest text-slate-400">How's the fit?</label>
-                            <span className="text-sm font-bold text-blue-600">{fitLabel}</span>
+                            <label className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">HOW'S THE FIT?</label>
+                            <span className="text-sm font-bold text-blue-700">{fitLabel}</span>
                         </div>
-                        <div className="relative pt-2 px-0.5">
-                            {/* Visual Track Indicators */}
-                            <div className="absolute top-[12px] left-0 right-0 flex justify-between pointer-events-none px-0.5">
-                                {[0, 50, 100].map((step) => (
-                                    <div
-                                        key={step}
-                                        className={clsx(
-                                            "w-2.5 h-2.5 rounded-full border-2 transition-colors",
-                                            fit === step ? "bg-blue-600 border-blue-600" : "bg-white border-slate-200"
-                                        )}
-                                    />
-                                ))}
-                            </div>
-
+                        <div className="relative pt-2">
                             <input
                                 type="range"
                                 min="0"
@@ -108,28 +117,15 @@ export default function WriteReviewPage() {
                                 step="50"
                                 value={fit}
                                 onChange={(e) => setFit(parseInt(e.target.value))}
-                                className="w-full h-1 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600 relative z-10"
+                                className="w-full h-[6px] bg-slate-100 rounded-full appearance-none cursor-pointer accent-blue-700 relative z-10 
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-blue-800 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-none
+                                [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-blue-800 [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:rounded-full shadow-none"
                             />
 
-                            <div className="flex justify-between mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                <button
-                                    onClick={() => setFit(0)}
-                                    className={clsx("hover:text-blue-600 transition-colors uppercase", fit === 0 && "text-blue-600")}
-                                >
-                                    Runs Small
-                                </button>
-                                <button
-                                    onClick={() => setFit(50)}
-                                    className={clsx("hover:text-blue-600 transition-colors uppercase", fit === 50 && "text-blue-600")}
-                                >
-                                    True to Size
-                                </button>
-                                <button
-                                    onClick={() => setFit(100)}
-                                    className={clsx("hover:text-blue-600 transition-colors uppercase", fit === 100 && "text-blue-600")}
-                                >
-                                    Runs Large
-                                </button>
+                            <div className="flex justify-between mt-5 text-[9px] font-bold uppercase tracking-widest text-slate-300">
+                                <span className={clsx(fit === 0 && "text-slate-400")}>Runs Small</span>
+                                <span className={clsx(fit === 50 && "text-slate-400")}>True to Size</span>
+                                <span className={clsx(fit === 100 && "text-slate-400")}>Runs Large</span>
                             </div>
                         </div>
                     </div>
@@ -163,13 +159,44 @@ export default function WriteReviewPage() {
                     {/* Image Upload */}
                     <div className="space-y-4">
                         <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Show off your fit</label>
-                        <div className="border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer group">
-                            <div className="bg-white w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm group-hover:scale-110 transition-transform">
-                                <Camera className="w-6 h-6 text-blue-600" />
+
+                        {/* Image Previews */}
+                        {images.length > 0 && (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                {images.map((img, idx) => (
+                                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 group">
+                                        <Image src={img} alt={`Upload ${idx}`} fill className="object-cover" />
+                                        <button
+                                            onClick={() => handleRemoveImage(idx)}
+                                            className="absolute top-2 right-2 p-1 bg-white/80 backdrop-blur-sm rounded-full text-slate-900 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))}
                             </div>
-                            <h4 className="font-bold text-slate-900 mb-1">Click to upload or drag and drop</h4>
-                            <p className="text-xs text-slate-400">SVG, PNG, JPG or GIF (max. 5MB)</p>
-                        </div>
+                        )}
+
+                        {/* Large Upload Action */}
+                        {images.length < 5 && (
+                            <div
+                                onClick={() => document.getElementById('image-upload')?.click()}
+                                className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer group"
+                            >
+                                <div className="bg-white w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2 shadow-sm group-hover:scale-110 transition-transform">
+                                    <Camera className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <h4 className="font-bold text-blue-600 text-[10px] tracking-[0.2em] uppercase">ADD PHOTO</h4>
+                                <input
+                                    id="image-upload"
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    className="hidden"
+                                    onChange={handleImageUpload}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Actions */}
@@ -239,11 +266,11 @@ export default function WriteReviewPage() {
                                 {content || "Honestly, I was skeptical about the fit at first, but these are perfect. The material feels heavy and durable, exactly what I wanted for a daily driver. Pockets are super functional too."}
                             </p>
 
-                            {/* Review Image (Mock) */}
+                            {/* Review Image (Mock/Uploaded) */}
                             <div className="relative aspect-[4/3] w-32 bg-slate-100 rounded-xl overflow-hidden mb-6 group">
                                 <Image
-                                    src={product.image}
-                                    alt="User upload"
+                                    src={images.length > 0 ? images[0] : product.image}
+                                    alt="User upload preview"
                                     fill
                                     className="object-cover transition-transform group-hover:scale-110"
                                 />
