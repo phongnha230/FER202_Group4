@@ -1,9 +1,11 @@
 'use client';
 
 import Image from 'next/image';
-import { Minus, Plus, AlertTriangle } from 'lucide-react';
+import { Minus, Plus, AlertTriangle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { products } from '@/mock/products'; // Added
 import { CartItemType } from './cart-types';
+import { getColorFilter } from '@/lib/utils';
 
 interface CartItemProps {
     item: CartItemType;
@@ -21,6 +23,11 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemP
                     alt={item.name}
                     fill
                     className="object-cover"
+                    style={
+                        item.color !== (item.baseColor || products.find(p => p.id === item.productId)?.colors?.[0])
+                            ? getColorFilter(item.color, item.baseColor || products.find(p => p.id === item.productId)?.colors?.[0])
+                            : undefined
+                    }
                 />
             </div>
 
@@ -33,9 +40,19 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemP
                             {item.color} / {item.size}
                         </p>
                     </div>
-                    <p className="font-medium text-gray-900">
-                        ${item.price.toFixed(2)}
-                    </p>
+                    <div className="flex flex-col items-end gap-1">
+                        <p className="font-medium text-gray-900">
+                            ${item.price.toFixed(2)}
+                        </p>
+                        <button
+                            onClick={() => onRemove(item.id)}
+                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors mt-1"
+                            aria-label="Remove item"
+                        >
+                            <Trash2 className="h-3 w-3" />
+                            <span>Remove</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div className="flex justify-between items-end mt-4">

@@ -9,6 +9,7 @@ export interface Product {
     featured?: boolean;
     inStock?: boolean;
     colors?: string[];
+    colorImages?: Record<string, string>; // Maps color name to image URL
     sizes?: string[];
     isNew?: boolean;
     salePrice?: number;
@@ -95,7 +96,7 @@ export const products: Product[] = [
         slug: 'graphic-print-tee',
         featured: false,
         inStock: true,
-        colors: ['Black', 'White'],
+        colors: ['White', 'Black'],
         sizes: ['S', 'M', 'L'],
         salePrice: 44.99,
     },
@@ -126,7 +127,7 @@ export const products: Product[] = [
         colors: ['Black', 'Green'],
         sizes: ['M', 'L'],
     },
-    
+
 ];
 
 export const getFeaturedProducts = () => products.filter(p => p.featured);

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { CreditCard, Wallet, Smartphone } from 'lucide-react';
+import { CreditCard, Wallet, Smartphone, QrCode } from 'lucide-react';
 
 export default function CheckoutForm() {
     return (
@@ -116,6 +116,13 @@ export default function CheckoutForm() {
                         <Label htmlFor="apple" className="font-semibold flex-1 flex items-center cursor-pointer">
                             Apple Pay
                             <Smartphone className="ml-auto h-5 w-5 text-gray-500" />
+                        </Label>
+                    </div>
+                    <div className="border rounded-lg p-4 flex items-center space-x-3 [&:has(:checked)]:border-black">
+                        <RadioGroupItem value="momo" id="momo" />
+                        <Label htmlFor="momo" className="font-semibold flex-1 flex items-center cursor-pointer">
+                            MoMo
+                            <QrCode className="ml-auto h-5 w-5 text-gray-500" />
                         </Label>
                     </div>
                 </RadioGroup>

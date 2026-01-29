@@ -4,8 +4,10 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useState, useEffect } from 'react';
-import { getCart } from '@/lib/cart';
+import { getCart, removeCartItem } from '@/lib/cart';
+import { products } from '@/mock/products'; // Added products import
 import { CartItemType } from '@/components/cart/cart-types';
+import { getColorFilter } from '@/lib/utils';
 
 export default function OrderSummary() {
     const [cartItems, setCartItems] = useState<CartItemType[]>([]);
@@ -36,6 +38,11 @@ export default function OrderSummary() {
                                 alt={item.name}
                                 fill
                                 className="object-cover"
+                                style={
+                                    item.color !== (item.baseColor || products.find(p => p.id === item.productId)?.colors?.[0])
+                                        ? getColorFilter(item.color, item.baseColor || products.find(p => p.id === item.productId)?.colors?.[0])
+                                        : undefined
+                                }
                             />
                             <span className="absolute top-0 right-0 bg-gray-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-bl-md">
                                 {item.quantity}
@@ -45,7 +52,18 @@ export default function OrderSummary() {
                             <h3 className="text-sm font-medium text-gray-900">{item.name}</h3>
                             <p className="text-xs text-gray-500">{item.color} / {item.size}</p>
                         </div>
-                        <p className="text-sm font-medium text-gray-900">${item.price.toFixed(2)}</p>
+                        <div className="flex flex-col items-end gap-1">
+                            <p className="text-sm font-medium text-gray-900">${item.price.toFixed(2)}</p>
+                            <button
+                                onClick={() => {
+                                    removeCartItem(item.id);
+                                    setCartItems(getCart());
+                                }}
+                                className="text-[10px] text-gray-400 hover:text-red-500 transition-colors uppercase tracking-wider font-semibold"
+                            >
+                                Remove
+                            </button>
+                        </div>
                     </div>
                 ))}
             </div>
