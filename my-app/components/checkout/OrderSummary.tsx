@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useState, useEffect } from 'react';
 import { getCart, removeCartItem } from '@/lib/cart';
-import { products } from '@/mock/products'; // Added products import
 import { CartItemType } from '@/components/cart/cart-types';
 import { getColorFilter } from '@/lib/utils';
 
@@ -14,8 +13,11 @@ export default function OrderSummary() {
     const [isLoaded, setIsLoaded] = useState(false);
 
     useEffect(() => {
-        setCartItems(getCart());
-        setIsLoaded(true);
+        const timer = setTimeout(() => {
+            setCartItems(getCart());
+            setIsLoaded(true);
+        }, 0);
+        return () => clearTimeout(timer);
     }, []);
 
     const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -39,8 +41,8 @@ export default function OrderSummary() {
                                 fill
                                 className="object-cover"
                                 style={
-                                    item.color !== (item.baseColor || products.find(p => p.id === item.productId)?.colors?.[0])
-                                        ? getColorFilter(item.color, item.baseColor || products.find(p => p.id === item.productId)?.colors?.[0])
+                                    item.color !== item.baseColor
+                                        ? getColorFilter(item.color, item.baseColor)
                                         : undefined
                                 }
                             />

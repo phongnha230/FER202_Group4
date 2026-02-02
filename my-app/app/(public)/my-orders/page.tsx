@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useUserStore } from '@/store/user.store';
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, Package, PenLine, RefreshCcw, Star, Truck } from "lucide-react";
+import { Package, PenLine, RefreshCcw, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { products, Product } from "@/mock/products";
 import {
     Select,
     SelectContent,
@@ -16,6 +16,13 @@ import {
 import clsx from "clsx";
 
 type OrderStatus = 'ordered' | 'shipped' | 'delivered' | 'returned';
+
+interface Product {
+    id: string;
+    name: string;
+    image: string;
+    price: number;
+}
 
 interface Order {
     id: string;
@@ -33,74 +40,76 @@ export default function MyOrdersPage() {
     const [activeTab, setActiveTab] = useState<'ALL' | 'ON THE WAY' | 'RETURNS'>('ALL');
     const [selectedYear, setSelectedYear] = useState<string>("all");
 
-    // Create mock orders using products from streetwear
-    const mockOrders: Order[] = useMemo(() => [
-        {
-            id: 'o1',
-            orderNumber: 'UN-8821',
-            date: '2023-10-21',
-            status: 'shipped',
-            product: products.find(p => p.id === '4') || products[0],
-            size: 'L',
-            color: 'Black',
-            quantity: 1,
-            deliveryEstimate: 'Oct 24'
-        },
-        {
-            id: 'o2',
-            orderNumber: 'UN-8742',
-            date: '2023-10-10',
-            status: 'delivered',
-            product: products.find(p => p.id === '3') || products[0],
-            size: 'M',
-            color: 'White',
-            quantity: 2
-        },
-        {
-            id: 'o3',
-            orderNumber: 'UN-8105',
-            date: '2023-09-15',
-            status: 'delivered',
-            product: products.find(p => p.id === '2') || products[0],
-            size: 'S',
-            color: 'Olive',
-            quantity: 1
-        },
-        {
-            id: 'o4',
-            orderNumber: 'UN-7922',
-            date: '2022-08-02',
-            status: 'delivered',
-            product: products.find(p => p.id === '1') || products[0],
-            size: 'L',
-            color: 'Gray',
-            quantity: 1
-        },
-        {
-            id: 'o5',
-            orderNumber: 'UN-9001',
-            date: '2024-01-15',
-            status: 'ordered',
-            product: products.find(p => p.id === '5') || products[0],
-            size: 'XL',
-            color: 'Blue',
-            quantity: 1,
-            deliveryEstimate: 'Jan 20'
-        },
-        {
-            id: 'o6',
-            orderNumber: 'UN-8500',
-            date: '2023-11-05',
-            status: 'returned',
-            product: products.find(p => p.id === '6') || products[0],
-            size: 'M',
-            color: 'Black',
-            quantity: 1
+    const [orders, setOrders] = useState<Order[]>([]);
+    const [loading, setLoading] = useState(true);
+    const { user, isAuthenticated } = useUserStore();
+
+    useEffect(() => {
+        async function fetchOrders() {
+            if (!isAuthenticated || !user) {
+                setOrders([]);
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const { getUserOrders } = await import('@/services/order.service');
+                const { data, error } = await getUserOrders(user.id);
+                
+                if (error) {
+                    console.error("Error fetching orders:", error);
+                    return;
+                }
+
+                // Map DB orders to UI Order format
+                // Flattening items to match the current UI design (one card per item)
+                const mappedOrders: Order[] = [];
+                
+                data.forEach(dbOrder => {
+                    dbOrder.items?.forEach((item) => { 
+                         let uiStatus: OrderStatus = 'ordered';
+                         if (dbOrder.order_status === 'shipping') uiStatus = 'shipped';
+                         if (dbOrder.order_status === 'delivered' || dbOrder.order_status === 'completed') uiStatus = 'delivered';
+                         if (dbOrder.order_status === 'returned' || dbOrder.order_status === 'cancelled') uiStatus = 'returned';
+
+                         // Check item.product (mapped in service) or item.variant.product
+                         // The type definition from getUserOrders ensures item has variant and product structure
+                         // We cast to specific type to avoid TS error about missing 'product' on base ProductVariant type
+                         const variantWithProduct = item.variant as (import('@/types/database.types').ProductVariant & { product: Product }) | null;
+                         const productData = item.product || variantWithProduct?.product;
+
+                         mappedOrders.push({
+                             id: dbOrder.id, // Keeping order ID for review link
+                             orderNumber: dbOrder.id.substring(0, 8).toUpperCase(), 
+                             date: dbOrder.created_at,
+                             status: uiStatus,
+                             product: {
+                                 id: productData?.id || item.variant_id || 'unknown', // Need product ID for review
+                                 name: productData?.name || 'Unknown Product',
+                                 image: productData?.image || '/images/product-mock.jpg',
+                                 price: item.price
+                             },
+                             size: item.variant?.size || '',
+                             color: item.variant?.color || '',
+                             quantity: item.quantity,
+                             deliveryEstimate: dbOrder.shipping?.provider === 'manual' ? 'TBD' : undefined 
+                         });
+                    });
+                });
+
+                setOrders(mappedOrders);
+            } catch (err) {
+                console.error("Failed to load orders", err);
+            } finally {
+                setLoading(false);
+            }
         }
-    ], []);
+
+        fetchOrders();
+    }, [user, isAuthenticated]);
 
     const filteredOrders = useMemo(() => {
-        return mockOrders.filter(order => {
+        return orders.filter(order => {
             // Filter by Tab
             if (activeTab === 'ON THE WAY') {
                 if (order.status !== 'ordered' && order.status !== 'shipped') return false;
@@ -116,13 +125,21 @@ export default function MyOrdersPage() {
 
             return true;
         });
-    }, [activeTab, selectedYear, mockOrders]);
+    }, [activeTab, selectedYear, orders]);
 
     const activeOrders = filteredOrders.filter(o => o.status === 'ordered' || o.status === 'shipped');
     const pastOrders = filteredOrders.filter(o => o.status === 'delivered' || o.status === 'returned');
 
+
     return (
         <div className="container-custom py-10">
+            {loading && (
+                 <div className="flex justify-center items-center py-20">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div>
+                 </div>
+            )}
+            {!loading && (
+                <>
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
                 <div>
@@ -333,6 +350,8 @@ export default function MyOrdersPage() {
                     <h3 className="text-lg font-medium text-gray-900">No orders found</h3>
                     <p className="text-muted-foreground">Try adjusting your filters or year selection.</p>
                 </div>
+            )}
+            </>
             )}
         </div>
     );

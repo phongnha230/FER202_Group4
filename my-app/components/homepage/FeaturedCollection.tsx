@@ -1,11 +1,59 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/product/ProductCard';
-import { getFeaturedProducts } from '@/mock/products';
-import { ArrowRight } from 'lucide-react';
+import { getFeaturedProducts } from '@/lib/api/product.api';
+import { adaptProductsToUI, UIProduct } from '@/lib/adapters/product.adapter';
+import { ArrowRight, Loader2 } from 'lucide-react';
 
 export default function FeaturedCollection() {
-    const featuredProducts = getFeaturedProducts();
+    const [featuredProducts, setFeaturedProducts] = useState<UIProduct[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        async function loadProducts() {
+            try {
+                setLoading(true);
+                const { data, error } = await getFeaturedProducts(8);
+                
+                if (error) throw error;
+                
+                setFeaturedProducts(adaptProductsToUI(data));
+            } catch (err) {
+                console.error('Error loading featured products:', err);
+                setError(err instanceof Error ? err.message : 'Failed to load products');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadProducts();
+    }, []);
+
+    if (loading) {
+        return (
+            <section className="py-20 md:py-28 lg:py-36 bg-[#f8f8f6]">
+                <div className="container-custom flex items-center justify-center min-h-[400px]">
+                    <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                </div>
+            </section>
+        );
+    }
+
+    if (error) {
+        return (
+            <section className="py-20 md:py-28 lg:py-36 bg-[#f8f8f6]">
+                <div className="container-custom">
+                    <div className="text-center text-red-600">
+                        <p>Error loading products: {error}</p>
+                    </div>
+                </div>
+            </section>
+        );
+    }
 
     return (
         <section className="py-20 md:py-28 lg:py-36 bg-[#f8f8f6] animate-scale-up-bottom">

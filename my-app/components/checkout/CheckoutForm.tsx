@@ -45,24 +45,27 @@ export default function CheckoutForm() {
                     </div>
                     <div className="grid gap-2 md:col-span-2">
                         <Label htmlFor="city">City</Label>
-                        <Input id="city" placeholder="New York" />
+                        <Input id="city" placeholder="Ho Chi Minh City" />
                     </div>
-                    <div className="grid gap-2">
+                    <div className="grid gap-2 md:col-span-2">
                         <Label htmlFor="country">Country</Label>
-                        <Select defaultValue="us">
+                        <Select defaultValue="vietnam">
                             <SelectTrigger>
                                 <SelectValue placeholder="Select country" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="us">United States</SelectItem>
-                                <SelectItem value="ca">Canada</SelectItem>
-                                <SelectItem value="uk">United Kingdom</SelectItem>
+                                <SelectItem value="vietnam">🇻🇳 Vietnam</SelectItem>
+                                <SelectItem value="thailand">🇹🇭 Thailand</SelectItem>
+                                <SelectItem value="singapore">🇸🇬 Singapore</SelectItem>
+                                <SelectItem value="malaysia">🇲🇾 Malaysia</SelectItem>
+                                <SelectItem value="indonesia">🇮🇩 Indonesia</SelectItem>
+                                <SelectItem value="philippines">🇵🇭 Philippines</SelectItem>
+                                <SelectItem value="myanmar">🇲🇲 Myanmar</SelectItem>
+                                <SelectItem value="cambodia">🇰🇭 Cambodia</SelectItem>
+                                <SelectItem value="laos">🇱🇦 Laos</SelectItem>
+                                <SelectItem value="brunei">🇧🇳 Brunei</SelectItem>
                             </SelectContent>
                         </Select>
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="zip">ZIP Code</Label>
-                        <Input id="zip" placeholder="10001" />
                     </div>
                 </div>
             </section>

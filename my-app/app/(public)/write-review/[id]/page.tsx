@@ -2,11 +2,9 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Star, Camera, X, ThumbsUp, ThumbsDown, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { products } from "@/mock/products";
 import clsx from "clsx";
 
 export default function WriteReviewPage() {
@@ -14,12 +12,13 @@ export default function WriteReviewPage() {
     const router = useRouter();
     const orderId = params.id as string;
 
-    // Mock finding the product based on orderId (simplified for demo)
-    // In a real app, you'd fetch order details
-    const product = useMemo(() => {
-        // Return a default product if not found
-        return products.find(p => p.id === '3') || products[0];
-    }, []);
+    // Mock product for demo - in real app this would fetch from order details
+    const product = useMemo(() => ({
+        id: '1',
+        name: 'Essential Streetwear Hoodie',
+        image: '/images/product-mock.jpg', // Default placeholder
+        price: 89.99
+    }), []);
 
     const [rating, setRating] = useState(0);
     const [hoverRating, setHoverRating] = useState(0);
@@ -30,21 +29,54 @@ export default function WriteReviewPage() {
 
     const handleRatingClick = (val: number) => setRating(val);
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files) return;
 
-        const newImages = [...images];
-        Array.from(files).forEach(file => {
-            if (newImages.length >= 5) return;
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target?.result) {
-                    setImages(prev => [...prev, event.target!.result as string].slice(0, 5));
-                }
-            };
-            reader.readAsDataURL(file);
-        });
+        if (images.length + files.length > 5) {
+            alert('Maximum 5 images allowed');
+            return;
+        }
+
+        // Import function dynamically or assume global import if available, 
+        // but here we know we should use the service.
+        // For Client Component, better to handle upload state.
+        
+        const fileArray = Array.from(files);
+        
+        try {
+            // Using Base64 just for preview for now is fine, BUT user wants REAL upload.
+            // Let's assume we upload immediately for this demo to get the URL, 
+            // OR we can upload on SUBMIT. Uploading on submit is better for avoiding orphan files if user cancels.
+            // However, to keep it simple and fulfill "upload service integration", let's upload immediately and show spinner if needed.
+            
+            // For this UI, let's keep base64 for preview, but ALSO upload to get URL?
+            // Actually, the `CreateReviewRequest` expects `images: string[]`. These strings should be URLs.
+            // So we MUST upload.
+            
+            // To avoid blocking UI, let's show preview immediately via Base64, and background upload?
+            // Or just simple upload and wait.
+            
+            // Simplified: Upload immediately.
+            const { uploadFiles } = await import('@/services/upload.service');
+
+            const results = await uploadFiles(fileArray, 'reviews'); // Assume bucket 'reviews' exists or fallback to 'uploads'
+             
+            const newUrls = results
+                .filter(res => res.url && !res.error)
+                .map(res => res.url as string);
+
+            setImages(prev => [...prev, ...newUrls].slice(0, 5));
+            
+            const errors = results.filter(res => res.error);
+            if (errors.length > 0) {
+                 console.error("Some uploads failed", errors);
+                 alert(`Failed to upload ${errors.length} images.`);
+            }
+
+        } catch (error) {
+            console.error("Upload error", error);
+        }
     };
 
     const handleRemoveImage = (index: number) => {
@@ -75,7 +107,7 @@ export default function WriteReviewPage() {
                         </div>
                         <div>
                             <h3 className="font-bold text-slate-900 text-lg">{product.name}</h3>
-                            <p className="text-sm text-slate-500">Size L • Order #45920</p>
+                            <p className="text-sm text-slate-500">Size L • Order #{orderId || '45920'}</p>
                         </div>
                     </div>
 
@@ -106,7 +138,7 @@ export default function WriteReviewPage() {
                     {/* Fit Section */}
                     <div className="space-y-6">
                         <div className="flex justify-between items-end">
-                            <label className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">HOW'S THE FIT?</label>
+                            <label className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">HOW&apos;S THE FIT?</label>
                             <span className="text-sm font-bold text-blue-700">{fitLabel}</span>
                         </div>
                         <div className="relative pt-2">
@@ -136,7 +168,7 @@ export default function WriteReviewPage() {
                             <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Review Title</label>
                             <input
                                 type="text"
-                                placeholder="e.g. Best cargos I've ever owned"
+                                placeholder="e.g. Best cargos I&apos;ve ever owned"
                                 className="w-full border-b border-slate-200 py-3 text-lg font-medium focus:outline-none focus:border-blue-600 transition-colors placeholder:text-slate-300"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
@@ -260,7 +292,7 @@ export default function WriteReviewPage() {
 
                             {/* Content */}
                             <h2 className="text-xl font-black text-slate-900 mb-3 leading-tight">
-                                {title || "Best cargos I've ever owned"}
+                                {title || "Best cargos I&apos;ve ever owned"}
                             </h2>
                             <p className="text-sm text-slate-500 leading-relaxed mb-6">
                                 {content || "Honestly, I was skeptical about the fit at first, but these are perfect. The material feels heavy and durable, exactly what I wanted for a daily driver. Pockets are super functional too."}

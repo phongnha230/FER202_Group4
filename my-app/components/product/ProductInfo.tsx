@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Product } from '@/mock/products';
+import { UIProduct } from '@/lib/adapters/product.adapter';
 import { Button } from '@/components/ui/button';
 import { Heart, Truck, RefreshCw, ShieldCheck } from 'lucide-react';
 import VariantSelector from './VariantSelector';
 import { useRouter } from 'next/navigation';
-import { addToCart as addItemToCart, getCart } from '@/lib/cart'; // Added getCart
+import { getCart } from '@/lib/cart'; // Added getCart
 import CartSuccessModal from '../cart/CartSuccessModal'; // Import Modal
 import { CartItemType } from '@/components/cart/cart-types';
+import { useUserStore } from '@/store/user.store';
+import { addToCart as apiAddToCart } from '@/services/cart.service';
 import {
     Accordion,
     AccordionContent,
@@ -18,7 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 
 interface ProductInfoProps {
-    product: Product;
+    product: UIProduct;
     selectedColor: string;
     onColorChange: (color: string) => void;
 }
@@ -34,6 +36,33 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
     const [cartCount, setCartCount] = useState(0);
     const [cartTotal, setCartTotal] = useState(0);
 
+    // New state for variants and stock
+    const [variants, setVariants] = useState<import('@/types/database.types').ProductVariant[]>([]);
+    const [currentStock, setCurrentStock] = useState<number | null>(null);
+
+    // Fetch variants to get real stock info
+    useEffect(() => {
+        const fetchVariants = async () => {
+            const { getProductVariants } = await import('@/services/product.service');
+            const { data } = await getProductVariants(product.id);
+            if (data) {
+                setVariants(data);
+            }
+        };
+        fetchVariants();
+    }, [product.id]);
+
+    // Update stock when selection changes
+    useEffect(() => {
+        if (!variants.length) return;
+        
+        const matchingVariant = variants.find(v => 
+            v.color === selectedColor && v.size === selectedSize
+        );
+        
+        setCurrentStock(matchingVariant ? matchingVariant.stock : null);
+    }, [selectedColor, selectedSize, variants]);
+
     const updateCartData = () => {
         if (typeof window === 'undefined') return;
         const cart = getCart();
@@ -42,11 +71,18 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
     };
 
     useEffect(() => {
-        updateCartData();
+        // Use setTimeout to avoid "synchronous setState in effect" warning
+        const timer = setTimeout(() => {
+            updateCartData();
+        }, 0);
 
         const handleCartUpdate = () => updateCartData();
         window.addEventListener('cart-updated', handleCartUpdate);
-        return () => window.removeEventListener('cart-updated', handleCartUpdate);
+        
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener('cart-updated', handleCartUpdate);
+        };
     }, []);
 
 
@@ -106,10 +142,15 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                     />
                 )}
 
-                {product.inStock && product.sizes && (
+                {currentStock !== null && currentStock > 0 && (
                     <p className="text-xs text-orange-600 font-medium mt-1 mb-4 flex items-center">
                         <span className="w-2 h-2 rounded-full bg-orange-600 mr-2 animate-pulse"></span>
-                        Only 3 left in stock (mock)
+                        Stock: {currentStock}
+                    </p>
+                )}
+                {currentStock === 0 && (
+                     <p className="text-xs text-red-600 font-medium mt-1 mb-4">
+                        Out of stock
                     </p>
                 )}
             </div>
@@ -120,22 +161,60 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                     variant="outline"
                     className="flex-1 h-12 text-base border-black hover:bg-black hover:text-white transition-colors"
                     size="lg"
-                    onClick={() => {
-                        const newItem: CartItemType = {
-                            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                            productId: product.id,
-                            name: product.name,
-                            price: product.salePrice || product.price,
-                            image: product.image,
-                            color: selectedColor,
-                            baseColor: product.colors?.[0], // Pass base color for filtering logic
-                            size: selectedSize,
-                            quantity: 1,
-                        };
-                        const addedItem = addItemToCart(newItem); // Capture returned item
-                        setLastAddedItem(addedItem || newItem); // Use returned item with correct ID
-                        // updateCartData(); // Removed manual call, relying on event listener
-                        setIsModalOpen(true);
+                    onClick={async () => {
+                        const { user, isAuthenticated } = useUserStore.getState();
+                        
+                        if (!isAuthenticated || !user) {
+                            router.push('/login');
+                            return;
+                        }
+
+                        // Find matching variant
+                        const matchingVariant = variants.find(v => 
+                            v.color === selectedColor && v.size === selectedSize
+                        );
+
+                        if (!matchingVariant) {
+                             alert("Please select a valid size and color");
+                             return;
+                        }
+
+                        try {
+                             const { data, error } = await apiAddToCart(user.id, {
+                                 variant_id: matchingVariant.id,
+                                 quantity: 1
+                             });
+
+                             if (error) {
+                                 console.error("Failed to add to cart", error);
+                                 alert("Failed to add to cart");
+                                 return;
+                             }
+
+                            const newItem: CartItemType = {
+                                id: data?.id || matchingVariant.id, // Use DB ID
+                                productId: product.id,
+                                name: product.name,
+                                price: product.salePrice || product.price,
+                                image: product.image,
+                                color: selectedColor,
+                                baseColor: product.colors?.[0], 
+                                size: selectedSize,
+                                quantity: 1,
+                            };
+                            
+                            // For modal display (optimistic or actual)
+                            setLastAddedItem(newItem);
+                            setIsModalOpen(true);
+                            
+                            // Trigger global cart update event for header counters if needed
+                             if (typeof window !== 'undefined') {
+                                 window.dispatchEvent(new Event('cart-updated'));
+                             }
+
+                        } catch (err) {
+                            console.error("Error adding to cart", err);
+                        }
                     }}
                 >
                     Add to Cart
@@ -143,19 +222,32 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                 <Button
                     className="flex-1 h-12 text-base btn-primary"
                     size="lg"
-                    onClick={() => {
-                        addItemToCart({
-                            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                            productId: product.id,
-                            name: product.name,
-                            price: product.salePrice || product.price,
-                            image: product.image,
-                            color: selectedColor,
-                            baseColor: product.colors?.[0], // Pass base color
-                            size: selectedSize,
-                            quantity: 1,
-                        });
-                        router.push('/checkout');
+                    onClick={async () => {
+                        const { user, isAuthenticated } = useUserStore.getState();
+                         if (!isAuthenticated || !user) {
+                            router.push('/login');
+                            return;
+                        }
+
+                         // Find matching variant
+                        const matchingVariant = variants.find(v => 
+                            v.color === selectedColor && v.size === selectedSize
+                        );
+
+                        if (!matchingVariant) {
+                             alert("Please select a valid size and color");
+                             return;
+                        }
+
+                        try {
+                             await apiAddToCart(user.id, {
+                                 variant_id: matchingVariant.id,
+                                 quantity: 1
+                             });
+                             router.push('/checkout');
+                        } catch(e) {
+                            console.error(e);
+                        }
                     }}
                 >
                     Buy Now

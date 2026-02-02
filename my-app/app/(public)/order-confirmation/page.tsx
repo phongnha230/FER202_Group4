@@ -4,12 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Check, Truck, Calendar } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getCart, clearCart } from '@/lib/cart';
 import { CartItemType } from '@/components/cart/cart-types';
 import { getColorFilter } from '@/lib/utils';
-import { products } from '@/mock/products';
 
 export default function OrderConfirmationPage() {
     const [cartItems, setCartItems] = useState<CartItemType[]>([]);
@@ -17,16 +15,17 @@ export default function OrderConfirmationPage() {
     const [orderNumber, setOrderNumber] = useState('');
 
     useEffect(() => {
-        // In a real app, we would fetch the order details from the backend using an ID from the URL
-        // For this mock flow, we'll strip the data from the cart just before we'd "clear" it, or just show the current cart state
-        // To make it feel like "placed order", we might want to clear the cart *after* showing this, or show a snapshot.
-        // For simplicity and to match the user's request of "showing correct items", I will just read the cart.
+        // Use setTimeout to move state updates to the next tick to avoid "synchronous setState in effect" warnings
+        // and ensure smooth rendering after hydration.
+        const timer = setTimeout(() => {
+            const items = getCart();
+            setCartItems(items);
+            setOrderNumber(`UN${Math.floor(Math.random() * 100000)}`);
+            setIsLoaded(true);
+        }, 0);
 
-        const items = getCart();
-        setCartItems(items);
-        setOrderNumber(`UN${Math.floor(Math.random() * 100000)}`);
-        setIsLoaded(true);
-
+        return () => clearTimeout(timer);
+        
         // Optional: Clear cart logic - normally done upon successful API response
         // clearCart(); 
     }, []);
@@ -73,8 +72,8 @@ export default function OrderConfirmationPage() {
                                         fill
                                         className="object-cover"
                                         style={
-                                            item.color !== (item.baseColor || products.find(p => p.id === item.productId)?.colors?.[0])
-                                                ? getColorFilter(item.color, item.baseColor || products.find(p => p.id === item.productId)?.colors?.[0])
+                                            item.color !== item.baseColor
+                                                ? getColorFilter(item.color, item.baseColor)
                                                 : undefined
                                         }
                                     />

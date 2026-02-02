@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ProductCard from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,12 +10,17 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { products as allProducts, type Product } from "@/mock/products";
+import { getProducts } from "@/lib/api/product.api";
+import { adaptProductsToUI, UIProduct } from "@/lib/adapters/product.adapter";
+import { Loader2 } from "lucide-react";
 
 type PriceKey = "all" | "under50" | "50to100" | "100to150" | "over150";
 type SortKey = "newest" | "priceAsc" | "priceDesc" | "nameAsc";
 
 export default function Page() {
+    const [allProducts, setAllProducts] = useState<UIProduct[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [category, setCategory] = useState<string>("all");
     const [size, setSize] = useState<string>("all");
     const [color, setColor] = useState<string>("all");
@@ -23,9 +28,29 @@ export default function Page() {
     const [sort, setSort] = useState<SortKey>("newest");
     const [visible, setVisible] = useState<number>(8);
 
+    useEffect(() => {
+        async function loadProducts() {
+            try {
+                setLoading(true);
+                const { data, error } = await getProducts({ status: 'active' });
+                
+                if (error) throw error;
+                
+                setAllProducts(adaptProductsToUI(data));
+            } catch (err) {
+                console.error('Error loading products:', err);
+                setError(err instanceof Error ? err.message : 'Failed to load products');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadProducts();
+    }, []);
+
     const categories = useMemo(
         () => Array.from(new Set(allProducts.map((p) => p.category))),
-        []
+        [allProducts]
     );
     const sizes = useMemo(
         () =>
@@ -34,7 +59,7 @@ export default function Page() {
                     allProducts.flatMap((p) => (p.sizes ? p.sizes : []))
                 )
             ),
-        []
+        [allProducts]
     );
     const colors = useMemo(
         () =>
@@ -43,11 +68,11 @@ export default function Page() {
                     allProducts.flatMap((p) => (p.colors ? p.colors : []))
                 )
             ),
-        []
+        [allProducts]
     );
 
     const filtered = useMemo(() => {
-        let list: Product[] = allProducts.slice();
+        let list: UIProduct[] = allProducts.slice();
 
         if (category !== "all") list = list.filter((p) => p.category === category);
         if (size !== "all") list = list.filter((p) => p.sizes?.includes(size));
@@ -69,7 +94,7 @@ export default function Page() {
         // "newest" keeps source order (mock order acts as newest)
 
         return list;
-    }, [category, size, color, price, sort]);
+    }, [allProducts, category, size, color, price, sort]);
 
     const resetFilters = () => {
         setCategory("all");
@@ -79,6 +104,30 @@ export default function Page() {
         setSort("newest");
         setVisible(8);
     };
+
+    if (loading) {
+        return (
+            <main className="py-10 md:py-12">
+                <div className="container-custom page-container">
+                    <div className="flex items-center justify-center min-h-[400px]">
+                        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                    </div>
+                </div>
+            </main>
+        );
+    }
+
+    if (error) {
+        return (
+            <main className="py-10 md:py-12">
+                <div className="container-custom page-container">
+                    <div className="text-center text-red-600 py-8">
+                        <p>Error loading products: {error}</p>
+                    </div>
+                </div>
+            </main>
+        );
+    }
 
     return (
         <main className="py-10 md:py-12">

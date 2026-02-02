@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Product } from '@/mock/products';
+import { UIProduct } from '@/lib/adapters/product.adapter';
 import ProductGallery from './ProductGallery';
 import ProductInfo from './ProductInfo';
 
 interface ProductContainerProps {
-    product: Product;
+    product: UIProduct;
 }
 
 export default function ProductContainer({ product }: ProductContainerProps) {

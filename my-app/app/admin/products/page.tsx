@@ -1,16 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import * as React from "react";
 import {
     Plus,
     Search,
     Filter,
-    MoreHorizontal,
     Eye,
-    Edit,
-    Trash2,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Loader2
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -23,14 +22,6 @@ import {
     TableHeader,
     TableRow
 } from "@/components/ui/table";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import {
     Select,
@@ -39,11 +30,35 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { products, type Product } from "@/mock/products";
+import { getProducts } from "@/lib/api/product.api";
+import { adaptProductsToUI, UIProduct } from "@/lib/adapters/product.adapter";
 
 export default function ProductsPage() {
+    const [products, setProducts] = useState<UIProduct[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = React.useState("");
     const [categoryFilter, setCategoryFilter] = React.useState("all");
+
+    useEffect(() => {
+        async function loadProducts() {
+            try {
+                setLoading(true);
+                const { data, error } = await getProducts({ status: 'active' });
+                
+                if (error) throw error;
+                
+                setProducts(adaptProductsToUI(data));
+            } catch (err) {
+                console.error('Error loading products:', err);
+                setError(err instanceof Error ? err.message : 'Failed to load products');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadProducts();
+    }, []);
 
     // Get unique categories for filter
     const categories = Array.from(new Set(products.map((p) => p.category)));
@@ -57,6 +72,22 @@ export default function ProductsPage() {
 
         return matchesSearch && matchesCategory;
     });
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="text-center text-red-600 py-8">
+                <p>Error loading products: {error}</p>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">

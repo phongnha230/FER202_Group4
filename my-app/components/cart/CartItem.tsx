@@ -2,8 +2,6 @@
 
 import Image from 'next/image';
 import { Minus, Plus, AlertTriangle, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { products } from '@/mock/products'; // Added
 import { CartItemType } from './cart-types';
 import { getColorFilter } from '@/lib/utils';
 
@@ -24,8 +22,8 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemP
                     fill
                     className="object-cover"
                     style={
-                        item.color !== (item.baseColor || products.find(p => p.id === item.productId)?.colors?.[0])
-                            ? getColorFilter(item.color, item.baseColor || products.find(p => p.id === item.productId)?.colors?.[0])
+                        item.color !== item.baseColor
+                            ? getColorFilter(item.color, item.baseColor)
                             : undefined
                     }
                 />

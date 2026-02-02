@@ -4,10 +4,10 @@ import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { cn, getColorFilter } from '@/lib/utils';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { Product } from '@/mock/products';
+import type { UIProduct } from '@/lib/adapters/product.adapter';
 
 interface ProductGalleryProps {
-    product: Product;
+    product: UIProduct;
     activeImage?: string;
     selectedColor?: string;
     onSelectColor?: (color: string) => void;
@@ -18,11 +18,14 @@ export default function ProductGallery({ product, activeImage, selectedColor, on
 
     // Sync selectedImage if activeImage prop changes (though we're moving away from this)
     useEffect(() => {
-        if (activeImage) {
-            setSelectedImage(activeImage);
-        } else {
-            setSelectedImage(product.image);
-        }
+        const timer = setTimeout(() => {
+            if (activeImage) {
+                setSelectedImage(activeImage);
+            } else {
+                setSelectedImage(product.image);
+            }
+        }, 0);
+        return () => clearTimeout(timer);
     }, [activeImage, product.image]);
 
     // Helper to get CSS filter based on color

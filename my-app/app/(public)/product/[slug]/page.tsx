@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
-import { getProductBySlug } from '@/mock/products';
+import { getProductBySlug } from '@/lib/api/product.api';
+import { adaptProductToUI } from '@/lib/adapters/product.adapter';
 import ProductContainer from '@/components/product/ProductContainer';
-import ProductReviews from '@/components/product/ProductReviews'; // Import
+import ProductReviews from '@/components/product/ProductReviews';
 import Link from 'next/link';
 
 // In Next.js 15+, params is a Promise.
@@ -13,11 +14,13 @@ type Props = {
 
 export default async function ProductPage({ params }: Props) {
     const { slug } = await params;
-    const product = getProductBySlug(slug);
+    const { data: product, error } = await getProductBySlug(slug);
 
-    if (!product) {
+    if (error || !product) {
         notFound();
     }
+
+    const uiProduct = adaptProductToUI(product);
 
     return (
         <div className="container mx-auto px-4 py-8 md:py-12">
@@ -30,20 +33,20 @@ export default async function ProductPage({ params }: Props) {
                     </li>
                     <li>/</li>
                     <li>
-                        <Link href={`/${product.category.toLowerCase()}`} className="hover:text-gray-900 transition-colors">
-                            {product.category}
+                        <Link href={`/${uiProduct.category.toLowerCase()}`} className="hover:text-gray-900 transition-colors">
+                            {uiProduct.category}
                         </Link>
                     </li>
                     <li>/</li>
                     <li className="text-gray-900 font-medium truncate" aria-current="page">
-                        {product.name}
+                        {uiProduct.name}
                     </li>
                 </ol>
             </nav>
 
-            <ProductContainer product={product} />
+            <ProductContainer product={uiProduct} />
 
-            <ProductReviews />
+            <ProductReviews productId={product.id} />
         </div>
     );
 }

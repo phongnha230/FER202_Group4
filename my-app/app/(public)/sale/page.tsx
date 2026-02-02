@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ProductCard from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,20 +10,47 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { products as allProducts, type Product } from "@/mock/products";
+import { getProducts } from "@/lib/api/product.api";
+import { adaptProductsToUI, UIProduct } from "@/lib/adapters/product.adapter";
+import { Loader2 } from "lucide-react";
 
 type PriceKey = "all" | "under50" | "50to100" | "100to150" | "over150";
 type SortKey = "newest" | "priceAsc" | "priceDesc" | "nameAsc";
 
 export default function Page() {
-    const baseProducts = useMemo(() => allProducts.filter(p => p.salePrice), []);
-
+    const [baseProducts, setBaseProducts] = useState<UIProduct[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [category, setCategory] = useState<string>("all");
     const [size, setSize] = useState<string>("all");
     const [color, setColor] = useState<string>("all");
     const [price, setPrice] = useState<PriceKey>("all");
     const [sort, setSort] = useState<SortKey>("newest");
     const [visible, setVisible] = useState<number>(8);
+
+    useEffect(() => {
+        async function loadProducts() {
+            try {
+                setLoading(true);
+                // Fetch all products and filter for those with sale prices
+                const { data, error } = await getProducts({ status: 'active' });
+                
+                if (error) throw error;
+                
+                // Filter for products with sale prices
+                const adapted = adaptProductsToUI(data);
+                const saleProducts = adapted.filter(p => p.salePrice);
+                setBaseProducts(saleProducts);
+            } catch (err) {
+                console.error('Error loading sale products:', err);
+                setError(err instanceof Error ? err.message : 'Failed to load products');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadProducts();
+    }, []);
 
     const categories = useMemo(
         () => Array.from(new Set(baseProducts.map((p) => p.category))),
@@ -39,7 +66,7 @@ export default function Page() {
     );
 
     const filtered = useMemo(() => {
-        let list: Product[] = baseProducts.slice();
+        let list: UIProduct[] = baseProducts.slice();
         if (category !== "all") list = list.filter((p) => p.category === category);
         if (size !== "all") list = list.filter((p) => p.sizes?.includes(size));
         if (color !== "all") list = list.filter((p) => p.colors?.includes(color));
@@ -70,6 +97,30 @@ export default function Page() {
         setVisible(8);
     };
 
+    if (loading) {
+        return (
+            <main className="py-10 md:py-12">
+                <div className="container-custom page-container">
+                    <div className="flex items-center justify-center min-h-[400px]">
+                        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                    </div>
+                </div>
+            </main>
+        );
+    }
+
+    if (error) {
+        return (
+            <main className="py-10 md:py-12">
+                <div className="container-custom page-container">
+                    <div className="text-center text-red-600 py-8">
+                        <p>Error loading sale products: {error}</p>
+                    </div>
+                </div>
+            </main>
+        );
+    }
+
     return (
         <main className="py-10 md:py-12">
             <div className="container-custom page-container">
@@ -86,7 +137,6 @@ export default function Page() {
                         <p className="mt-2 text-base md:text-lg font-medium tracking-wide uppercase opacity-90">
                             UP TO 50% OFF
                         </p>
-                        
                       
                     </div>
                 </div>

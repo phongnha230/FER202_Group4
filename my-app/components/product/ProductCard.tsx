@@ -6,11 +6,11 @@ import { ShoppingCart, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import type { Product } from '@/mock/products';
+import type { UIProduct } from '@/lib/adapters/product.adapter';
 import { addToCart as addItemToCart } from '@/lib/cart';
 
 interface ProductCardProps {
-    product: Product;
+    product: UIProduct;
 }
 
 export default function ProductCard({ product }: ProductCardProps) {

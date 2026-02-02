@@ -1,0 +1,7 @@
+[Current Error]
+The error "Unsupported provider: provider is not enabled" means Google Auth is disabled in the Supabase Dashboard.
+
+[Action Items]
+1.  [Required] User must go to Supabase Dashboard -> Authentication -> Providers -> Google and enable it.
+2.  [Required] User must enter Client ID and Secret from Google Cloud Console.
+3.  [Fix] I will update the code in `login/page.tsx` to point to `/api/auth/callback` instead of `/auth/callback` to match the project structure.
