@@ -10,6 +10,126 @@ import {
 
 import { deductStock, restoreStock } from '@/services/inventory.service';
 
+// Type for Buy Now order request
+interface CreateBuyNowOrderRequest {
+  variant_id: string;
+  quantity: number;
+  total_price: number;
+  payment_method: 'online' | 'cod';
+  /** Gateway for online payment: momo, vnpay, card. Required when payment_method is 'online'. */
+  payment_gateway?: 'momo' | 'vnpay' | 'card';
+  shipping_info: {
+    receiver_name: string;
+    receiver_phone: string;
+    receiver_address: string;
+  };
+}
+
+/**
+ * Create a new order for Buy Now (single item, not from cart)
+ */
+export async function createBuyNowOrder(
+  userId: string,
+  request: CreateBuyNowOrderRequest,
+  client: SupabaseClient = supabase
+): Promise<{ data: Order | null; error: PostgrestError | Error | null }> {
+  try {
+    // 1. Get variant price and stock
+    const { data: variant, error: variantError } = await client
+      .from('product_variants')
+      .select('id, price, stock')
+      .eq('id', request.variant_id)
+      .single();
+
+    if (variantError || !variant) {
+      return { data: null, error: variantError || new Error('Variant not found') };
+    }
+
+    // 2. Prepare item for inventory deduction
+    const itemsToDeduct = [{
+      variant_id: request.variant_id,
+      quantity: request.quantity
+    }];
+
+    // 3. Deduct stock
+    const { error: stockError } = await deductStock(itemsToDeduct, client);
+    if (stockError) {
+      return { data: null, error: stockError };
+    }
+
+    // 4. Create Order
+    const { data: order, error: orderError } = await client
+      .from('orders')
+      .insert({
+        user_id: userId,
+        total_price: request.total_price,
+        payment_method: request.payment_method,
+        payment_status: 'unpaid',
+        order_status: 'pending_payment',
+      })
+      .select()
+      .single();
+
+    if (orderError || !order) {
+      await restoreStock(itemsToDeduct, client);
+      return { data: null, error: orderError };
+    }
+
+    // 5. Create Order Item
+    const { error: itemsError } = await client
+      .from('order_items')
+      .insert({
+        order_id: order.id,
+        variant_id: request.variant_id,
+        price: variant.price,
+        quantity: request.quantity,
+      });
+
+    if (itemsError) {
+      await client.from('orders').delete().eq('id', order.id);
+      await restoreStock(itemsToDeduct, client);
+      return { data: null, error: itemsError };
+    }
+
+    // 6. Create Shipping Order
+    const { error: shippingError } = await client
+      .from('shipping_orders')
+      .insert({
+        order_id: order.id,
+        provider: 'manual',
+        receiver_name: request.shipping_info.receiver_name,
+        receiver_phone: request.shipping_info.receiver_phone,
+        receiver_address: request.shipping_info.receiver_address,
+        status: 'created',
+      });
+
+    if (shippingError) {
+      await client.from('orders').delete().eq('id', order.id);
+      await restoreStock(itemsToDeduct, client);
+      return { data: null, error: shippingError };
+    }
+
+    // 7. Create Payment Record (payments.method: momo|vnpay|card|cod)
+    const paymentMethodForDb = request.payment_method === 'cod'
+      ? 'cod'
+      : (request.payment_gateway || 'vnpay');
+    await client
+      .from('payments')
+      .insert({
+        order_id: order.id,
+        method: paymentMethodForDb,
+        status: 'pending',
+      });
+
+    // NOTE: We do NOT clear the cart for Buy Now orders
+    // This keeps the user's cart intact
+
+    return { data: order, error: null };
+  } catch (error) {
+    return { data: null, error: error as Error };
+  }
+}
+
 /**
  * Create a new order from cart
  */
@@ -109,12 +229,15 @@ export async function createOrder(
       return { data: null, error: shippingError };
     }
 
-    // 7. Create Payment Record
+    // 7. Create Payment Record (payments.method: momo|vnpay|card|cod)
+    const paymentMethodForDb = request.payment_method === 'cod'
+      ? 'cod'
+      : (request.payment_gateway || 'vnpay');
     await client
       .from('payments')
       .insert({
         order_id: order.id,
-        method: request.payment_method,
+        method: paymentMethodForDb,
         status: 'pending',
       });
 
@@ -279,10 +402,11 @@ export async function cancelOrder(
   }
 
   // Only allow cancellation for pending_payment, paid, or processing orders
-  if (!['pending_payment', 'paid', 'processing'].includes(order.order_status)) {
+  const cancellableStatuses = ['pending_payment', 'paid', 'processing'];
+  if (!cancellableStatuses.includes(order.order_status)) {
     return { 
       data: null, 
-      error: new Error('Order cannot be cancelled at this stage') 
+      error: new Error(`Không thể hủy đơn hàng ở trạng thái "${order.order_status}". Chỉ có thể hủy khi đơn hàng đang ở trạng thái: ${cancellableStatuses.join(', ')}`) 
     };
   }
 
@@ -293,17 +417,28 @@ export async function cancelOrder(
     .select()
     .single();
 
-    if (!error && order.items) {
-        // Restore stock
-        // Typed properly for the join result
-        const itemsToRestore = (order.items as unknown as OrderItem[]).map((item) => ({
-            variant_id: item.variant_id,
-            quantity: item.quantity
-        }));
-        await restoreStock(itemsToRestore, client);
+    if (error) {
+        console.error('Failed to update order status:', error);
+        return { data: null, error };
     }
 
-  return { data, error };
+    // Restore stock (don't block on errors)
+    if (order.items && order.items.length > 0) {
+        try {
+            const itemsToRestore = (order.items as unknown as OrderItem[]).map((item) => ({
+                variant_id: item.variant_id,
+                quantity: item.quantity
+            }));
+            const stockResult = await restoreStock(itemsToRestore, client);
+            if (stockResult.error) {
+                console.warn('Failed to restore stock (non-blocking):', stockResult.error);
+            }
+        } catch (stockError) {
+            console.warn('Error restoring stock (non-blocking):', stockError);
+        }
+    }
+
+  return { data, error: null };
 }
 
 /**

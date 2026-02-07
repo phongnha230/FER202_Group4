@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import CheckoutForm from '@/components/checkout/CheckoutForm';
 import OrderSummary from '@/components/checkout/OrderSummary';
 import { Lock } from 'lucide-react';
@@ -18,7 +19,9 @@ export default function CheckoutPage() {
                     <CheckoutForm />
                 </div>
                 <div className="lg:col-span-12 xl:col-span-5">
-                    <OrderSummary />
+                    <Suspense fallback={<div className="bg-gray-50 p-6 rounded-lg h-full animate-pulse">Loading summary...</div>}>
+                        <OrderSummary />
+                    </Suspense>
                 </div>
             </div>
         </div>

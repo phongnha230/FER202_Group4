@@ -63,6 +63,7 @@ export default function CartSuccessModal({
                                 src={product.image}
                                 alt={product.name}
                                 fill
+                                sizes="96px"
                                 className="object-cover"
                                 style={product.color !== product.baseColor ? getColorFilter(product.color, product.baseColor) : undefined}
                             />

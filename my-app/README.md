@@ -1,5 +1,24 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Email Notifications (Order)
+
+The app sends email notifications to customers via [Resend](https://resend.com):
+
+- **Khi đặt hàng**: Gửi email xác nhận đơn hàng đã được đặt
+- **Khi thanh toán thành công**: Gửi email thông báo thanh toán hoàn tất
+
+### Setup
+
+1. Tạo tài khoản [Resend](https://resend.com) và lấy API key
+2. Thêm vào `.env.local`:
+
+```
+RESEND_API_KEY=re_xxxxxxxxxxxx
+EMAIL_FROM=Shop <noreply@yourdomain.com>   # Optional, mặc định dùng onboarding@resend.dev
+```
+
+3. Verify domain trong Resend dashboard để gửi từ domain của bạn (hoặc dùng `onboarding@resend.dev` cho testing)
+
 ## Getting Started
 
 First, run the development server:

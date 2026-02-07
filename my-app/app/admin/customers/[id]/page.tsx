@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useEffect, useState } from "react";
 import {
     ArrowLeft,
     Mail,
@@ -10,10 +11,9 @@ import {
     ShoppingCart,
     RotateCcw,
     Search,
-    CheckCircle2,
     Sparkles,
-    CreditCard,
-    Bell
+    Bell,
+    Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,37 +28,173 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useParams } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
 
-// Mock Data
-const customerProfile = {
-    id: "1",
-    name: "Kai Takamura",
-    email: "kai.takamura@example.com",
-    phone: "+1 (555) 019-2834",
-    joined: "Nov 2022",
-    verified: true,
-    avatar: "/placeholder-kai.jpg", // We'll mock this with initials
-    initials: "KT",
-    ltv: "$1,245.00",
-    ltvGrowth: "+12% vs avg",
-    aov: "$155.00",
-    returns: 1,
-    membershipTier: "Gold Member",
-    tierPercent: "Top 5%",
-    preferredCategories: ["Oversized Hoodies", "Cargo Pants"],
-    paymentMethod: "•••• 4242",
-    engagementScore: 85
+interface CustomerProfile {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    address: string | null;
+    avatar_url: string | null;
+    joined: string;
+    orders_count: number;
+    total_spent: number;
+    returns_count: number;
+    aov: number;
+    avgLtvGrowth: number;
+}
+
+interface OrderRow {
+    id: string;
+    displayId: string;
+    date: string;
+    status: string;
+    amount: number;
+}
+
+const getInitials = (name: string) => {
+    return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .substring(0, 2);
 };
 
-const orderHistory = [
-    { id: "#4092", date: "Oct 24, 2023", status: "Delivered", amount: "$210.00" },
-    { id: "#3911", date: "Sep 12, 2023", status: "Delivered", amount: "$85.00" },
-    { id: "#3804", date: "Aug 05, 2023", status: "Returned", amount: "$110.00" },
-    { id: "#3650", date: "Jul 18, 2023", status: "Delivered", amount: "$950.00" },
-];
+const formatOrderStatus = (status: string) => {
+    const map: Record<string, string> = {
+        pending_payment: "Pending",
+        paid: "Paid",
+        processing: "Processing",
+        shipping: "Shipping",
+        delivered: "Delivered",
+        completed: "Completed",
+        cancelled: "Cancelled",
+        returned: "Returned",
+    };
+    return map[status] || status;
+};
 
-export default function CustomerDetailsPage({ params }: { params: { id: string } }) {
-    // In a real app, use params.id to fetch data
+export default function CustomerDetailsPage() {
+    const params = useParams();
+    const id = params?.id as string | undefined;
+    const [profile, setProfile] = useState<CustomerProfile | null>(null);
+    const [orders, setOrders] = useState<OrderRow[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!id) return;
+
+        async function loadCustomer() {
+            try {
+                setLoading(true);
+                setError(null);
+
+                // Fetch profile
+                const { data: profileData, error: profileError } = await supabase
+                    .from("profiles")
+                    .select("id, full_name, phone, address, avatar_url, created_at")
+                    .eq("id", id)
+                    .single();
+
+                if (profileError) throw profileError;
+                if (!profileData) {
+                    setError("Không tìm thấy khách hàng");
+                    return;
+                }
+
+                // Fetch orders for this customer
+                const { data: ordersData, error: ordersError } = await supabase
+                    .from("orders")
+                    .select("id, total_price, order_status, created_at")
+                    .eq("user_id", id)
+                    .order("created_at", { ascending: false });
+
+                if (ordersError) throw ordersError;
+
+                const orderRows: OrderRow[] = (ordersData || []).map((o) => ({
+                    id: o.id,
+                    displayId: `#${o.id.slice(0, 8)}`,
+                    date: new Date(o.created_at).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "2-digit",
+                    }),
+                    status: o.order_status,
+                    amount: o.total_price || 0,
+                }));
+
+                const totalSpent = (ordersData || []).reduce((sum, o) => sum + (o.total_price || 0), 0);
+                const returnsCount = (ordersData || []).filter((o) => o.order_status === "returned").length;
+                const ordersCount = ordersData?.length || 0;
+                const aov = ordersCount > 0 ? totalSpent / ordersCount : 0;
+
+                // Fetch email from API (auth.users)
+                let email = "";
+                try {
+                    const res = await fetch(`/api/admin/customers/${id}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        email = data.email || "";
+                    }
+                } catch {
+                    // Email is optional
+                }
+
+                setProfile({
+                    id: profileData.id,
+                    name: profileData.full_name || "Unknown",
+                    email,
+                    phone: profileData.phone,
+                    address: profileData.address,
+                    avatar_url: profileData.avatar_url,
+                    joined: new Date(profileData.created_at).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                    }),
+                    orders_count: ordersCount,
+                    total_spent: totalSpent,
+                    returns_count: returnsCount,
+                    aov,
+                    avgLtvGrowth: 0, // Could calculate vs platform avg if needed
+                });
+                setOrders(orderRows);
+            } catch (err) {
+                console.error("Error loading customer:", err);
+                setError(err instanceof Error ? err.message : "Lỗi tải dữ liệu");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadCustomer();
+    }, [id]);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            </div>
+        );
+    }
+
+    if (error || !profile) {
+        return (
+            <div className="space-y-6">
+                <Link href="/admin/customers" className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors">
+                    <ArrowLeft className="h-4 w-4" />
+                    <span className="text-sm font-medium">Back to Customers</span>
+                </Link>
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    {error || "Không tìm thấy khách hàng"}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -82,30 +218,36 @@ export default function CustomerDetailsPage({ params }: { params: { id: string }
             <div className="flex flex-col md:flex-row gap-6 items-center justify-between bg-white p-6 rounded-lg border">
                 <div className="flex flex-col md:flex-row items-center gap-6">
                     <div className="relative">
-                        <div className="h-24 w-24 rounded-full bg-slate-100 border-4 border-white shadow-sm flex items-center justify-center overflow-hidden">
-                            {/* Using Initials Mock instead of Image */}
-                            <span className="text-2xl font-bold text-slate-900">{customerProfile.initials}</span>
-                        </div>
-                        {customerProfile.verified && (
+                        <Avatar className="h-24 w-24 border-4 border-white shadow-sm">
+                            <AvatarImage src={profile.avatar_url || undefined} alt={profile.name} />
+                            <AvatarFallback className="h-24 w-24 rounded-full bg-slate-100 text-2xl font-bold text-slate-900">
+                                {getInitials(profile.name)}
+                            </AvatarFallback>
+                        </Avatar>
+                        {profile.orders_count > 0 && (
                             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
                                 <span>Verified</span>
                             </div>
                         )}
                     </div>
                     <div className="text-center md:text-left space-y-1">
-                        <h1 className="text-2xl font-bold text-slate-900">{customerProfile.name}</h1>
+                        <h1 className="text-2xl font-bold text-slate-900">{profile.name}</h1>
                         <div className="flex flex-col md:flex-row items-center gap-3 text-sm text-slate-500">
-                            <div className="flex items-center gap-1.5">
-                                <Mail className="h-3.5 w-3.5" />
-                                {customerProfile.email}
-                            </div>
-                            <div className="hidden md:block h-1 w-1 rounded-full bg-slate-300" />
+                            {profile.email && (
+                                <>
+                                    <div className="flex items-center gap-1.5">
+                                        <Mail className="h-3.5 w-3.5" />
+                                        {profile.email}
+                                    </div>
+                                    <div className="hidden md:block h-1 w-1 rounded-full bg-slate-300" />
+                                </>
+                            )}
                             <div className="flex items-center gap-1.5">
                                 <Phone className="h-3.5 w-3.5" />
-                                {customerProfile.phone}
+                                {profile.phone || "—"}
                             </div>
                         </div>
-                        <p className="text-xs text-slate-400 font-medium">Member since {customerProfile.joined}</p>
+                        <p className="text-xs text-slate-400 font-medium">Member since {profile.joined}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3 w-full md:w-auto">
@@ -133,10 +275,12 @@ export default function CustomerDetailsPage({ params }: { params: { id: string }
                                 <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">Lifetime Value</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-extrabold text-slate-900">{customerProfile.ltv}</div>
-                                <div className="text-[10px] font-bold text-emerald-600 bg-emerald-50 w-fit px-1.5 py-0.5 rounded mt-1">
-                                    {customerProfile.ltvGrowth}
-                                </div>
+                                <div className="text-2xl font-extrabold text-slate-900">${profile.total_spent.toFixed(2)}</div>
+                                {profile.avgLtvGrowth > 0 && (
+                                    <div className="text-[10px] font-bold text-emerald-600 bg-emerald-50 w-fit px-1.5 py-0.5 rounded mt-1">
+                                        +{profile.avgLtvGrowth}% vs avg
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                         <Card>
@@ -145,7 +289,7 @@ export default function CustomerDetailsPage({ params }: { params: { id: string }
                                 <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">Avg. Order Value</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-extrabold text-slate-900">{customerProfile.aov}</div>
+                                <div className="text-2xl font-extrabold text-slate-900">${profile.aov.toFixed(2)}</div>
                             </CardContent>
                         </Card>
                         <Card>
@@ -154,7 +298,7 @@ export default function CustomerDetailsPage({ params }: { params: { id: string }
                                 <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Returns</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-extrabold text-slate-900">{customerProfile.returns}</div>
+                                <div className="text-2xl font-extrabold text-slate-900">{profile.returns_count}</div>
                             </CardContent>
                         </Card>
                     </div>
@@ -176,21 +320,29 @@ export default function CustomerDetailsPage({ params }: { params: { id: string }
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {orderHistory.map((order) => (
-                                        <TableRow key={order.id}>
-                                            <TableCell className="font-bold text-blue-600 text-xs">{order.id}</TableCell>
-                                            <TableCell className="text-sm text-slate-600 font-medium">{order.date}</TableCell>
-                                            <TableCell>
-                                                <Badge variant="secondary" className={`text-[10px] font-bold uppercase tracking-wider rounded-sm
-                                                    ${order.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' :
-                                                        order.status === 'Returned' ? 'bg-orange-100 text-orange-700 hover:bg-orange-100' : 'bg-slate-100 text-slate-600'}
-                                                `}>
-                                                    {order.status}
-                                                </Badge>
+                                    {orders.length > 0 ? (
+                                        orders.map((order) => (
+                                            <TableRow key={order.id}>
+                                                <TableCell className="font-bold text-blue-600 text-xs">{order.displayId}</TableCell>
+                                                <TableCell className="text-sm text-slate-600 font-medium">{order.date}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant="secondary" className={`text-[10px] font-bold uppercase tracking-wider rounded-sm
+                                                        ${order.status === "delivered" || order.status === "completed" ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" :
+                                                            order.status === "returned" ? "bg-orange-100 text-orange-700 hover:bg-orange-100" : "bg-slate-100 text-slate-600"}
+                                                    `}>
+                                                        {formatOrderStatus(order.status)}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right font-bold text-slate-900">${order.amount.toFixed(2)}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="h-16 text-center text-slate-500 text-sm">
+                                                Chưa có đơn hàng
                                             </TableCell>
-                                            <TableCell className="text-right font-bold text-slate-900">{order.amount}</TableCell>
                                         </TableRow>
-                                    ))}
+                                    )}
                                 </TableBody>
                             </Table>
                         </CardContent>
@@ -215,46 +367,35 @@ export default function CustomerDetailsPage({ params }: { params: { id: string }
                                 <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Membership Tier</h4>
                                 <div className="flex items-center justify-between bg-slate-50 p-3 rounded border">
                                     <div className="flex items-center gap-2 font-bold text-slate-900">
-                                        <div className="h-2 w-2 rounded-full bg-yellow-500" />
-                                        {customerProfile.membershipTier}
+                                        <div className={`h-2 w-2 rounded-full ${profile.orders_count >= 5 ? "bg-yellow-500" : profile.orders_count > 0 ? "bg-slate-400" : "bg-slate-300"}`} />
+                                        {profile.orders_count >= 5 ? "Gold Member" : profile.orders_count > 0 ? "Silver Member" : "New Member"}
                                     </div>
-                                    <span className="text-xs text-slate-500 font-medium">{customerProfile.tierPercent}</span>
+                                    <span className="text-xs text-slate-500 font-medium">{profile.orders_count} orders</span>
                                 </div>
                             </div>
 
-                            {/* Preferred Category */}
-                            <div>
-                                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Preferred Category</h4>
-                                <div className="flex flex-wrap gap-2">
-                                    {customerProfile.preferredCategories.map((cat) => (
-                                        <div key={cat} className="bg-slate-50 text-slate-700 text-xs font-bold px-2 py-1 rounded border">
-                                            {cat}
-                                        </div>
-                                    ))}
+                            {/* Address */}
+                            {profile.address && (
+                                <div>
+                                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Address</h4>
+                                    <div className="bg-slate-50 p-3 rounded border text-sm text-slate-700">
+                                        {profile.address}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
-                            {/* Payment Method */}
-                            <div>
-                                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Payment Method</h4>
-                                <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                                    <CreditCard className="h-4 w-4 text-slate-400" />
-                                    Mastercard {customerProfile.paymentMethod}
-                                </div>
-                            </div>
-
-                            {/* Engagement Score */}
+                            {/* Engagement Score - based on order count */}
                             <div>
                                 <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Engagement Score</h4>
                                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                                     <div
                                         className="h-full bg-blue-600 rounded-full"
-                                        style={{ width: `${customerProfile.engagementScore}%` }}
+                                        style={{ width: `${Math.min(profile.orders_count * 20, 100)}%` }}
                                     />
                                 </div>
                                 <div className="flex justify-between mt-1 text-[10px] font-bold text-slate-400 uppercase">
                                     <span>Low</span>
-                                    <span className="text-slate-900">High ({customerProfile.engagementScore})</span>
+                                    <span className="text-slate-900">High ({Math.min(profile.orders_count * 20, 100)})</span>
                                 </div>
                             </div>
 

@@ -42,46 +42,38 @@ export async function updateSession(request: NextRequest) {
 
   // ADMIN ROUTE PROTECTION
   if (path.startsWith('/admin')) {
-    // If not logged in, redirect to admin login
-    if (!user && path !== '/admin/login') {
+    // Skip the old /admin/login page - redirect to main login
+    if (path === '/admin/login') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
+
+    // If not logged in, redirect to main login page
+    if (!user) {
        const url = request.nextUrl.clone()
-       url.pathname = '/admin/login'
+       url.pathname = '/login'
        return NextResponse.redirect(url)
     }
 
-    // If logged in, check role
+    // If logged in with Supabase, check role
     if (user) {
-        // We need to fetch the role from profiles
-        // getUser doesn't return custom claims/role by default unless set in metadata
-        // So we query the profiles table
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+        // First check user metadata (faster, no DB query)
+        let role = user.user_metadata?.role;
         
-        const role = profile?.role;
-
-        if (path === '/admin/login') {
-             // Already logged in as admin -> dashboard
-             if (role === 'admin') {
-                 const url = request.nextUrl.clone()
-                 url.pathname = '/admin/dashboard'
-                 return NextResponse.redirect(url)
-             }
-             // Logged in but not admin -> error or home?
-             // Maybe verify if they are trying to login as admin but are customer?
-             // For now, let them stay or redirect to home? 
-             // Let's redirect to home if customer
-             if (role !== 'admin') {
-                const url = request.nextUrl.clone()
-                 url.pathname = '/'
-                 return NextResponse.redirect(url)
-             }
-        } else {
-             // Accessing other /admin routes
-             if (role !== 'admin') {
-                 const url = request.nextUrl.clone()
-                 url.pathname = '/' // or 403 page
-                 return NextResponse.redirect(url)
-             }
+        // If no role in metadata, fetch from profiles table
+        if (!role) {
+            const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+            role = profile?.role;
         }
+
+        // If not admin, redirect to home
+        if (role !== 'admin') {
+            const url = request.nextUrl.clone()
+            url.pathname = '/'
+            return NextResponse.redirect(url)
+        }
+        // If admin, allow access
     }
   }
 

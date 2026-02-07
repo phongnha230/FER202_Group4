@@ -20,6 +20,7 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemP
                     src={item.image}
                     alt={item.name}
                     fill
+                    sizes="96px"
                     className="object-cover"
                     style={
                         item.color !== item.baseColor

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,20 +43,49 @@ export default function LoginPage() {
         setNotification({ message, type });
     };
 
+    // Check if user is already logged in on page load
+    useEffect(() => {
+        const checkSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                // User is already logged in, redirect based on role
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('id', session.user.id)
+                    .single();
+
+                const isAdmin = profile?.role === 'admin';
+                
+                // Simple redirect: Admin → admin dashboard, Customer → homepage
+                router.refresh();
+                if (isAdmin) {
+                    router.push('/admin/dashboard');
+                } else {
+                    router.push('/');
+                }
+            }
+        };
+
+        checkSession();
+    }, [router]);
+
     const handleGoogleLogin = async () => {
         setLoading(true);
+
         try {
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: `${window.location.origin}/`, 
+                    redirectTo: `${window.location.origin}/api/auth/callback`, 
+                    queryParams: {
+                        prompt: 'select_account'
+                    }
                 },
             });
             
             if (error) throw error;
             
-            // Note: OAuth redirects, so this might not be seen immediately unless handled on return
-            // But we can show a message before redirect starts
             showNotification('Redirecting to Google...', 'success');
         } catch (error) {
             showNotification(error instanceof Error ? error.message : 'Error signing in with Google', 'error');
@@ -72,8 +101,7 @@ export default function LoginPage() {
             const { error } = await supabase.auth.signInWithOtp({
                 email,
                 options: {
-                    // emailRedirectTo: `${window.location.origin}`,
-                    shouldCreateUser: true, // Auto-register if user doesn't exist (OTP Sign-up)
+                    shouldCreateUser: true,
                 }
             });
 
@@ -92,22 +120,39 @@ export default function LoginPage() {
         setLoading(true);
 
         try {
-            const { error: signInError } = await supabase.auth.signInWithPassword({
+            const { data, error: signInError } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             });
 
             if (signInError) throw signInError;
 
-            showNotification('Login successful! Redirecting...', 'success');
-            
-            setTimeout(() => {
-                router.push('/'); 
+            if (data.user) {
+                // Check if user is admin
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('id', data.user.id)
+                    .single();
+
+                const isAdmin = profile?.role === 'admin';
+                
+                showNotification('Login successful! Redirecting...', 'success');
+                
+                // Small delay to ensure session cookies are fully set
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Use router.refresh() to update server state, then navigate
                 router.refresh();
-            }, 1000);
+                
+                if (isAdmin) {
+                    router.push('/admin/dashboard');
+                } else {
+                    router.push('/');
+                }
+            }
         } catch (error) {
             showNotification(error instanceof Error ? error.message : 'An error occurred during sign in', 'error');
-        } finally {
             setLoading(false);
         }
     };

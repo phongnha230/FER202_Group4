@@ -17,23 +17,24 @@ export default function AdminLoginPage() {
     const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
         setIsLoading(true);
 
         // Simulate network delay
-        setTimeout(() => {
-            // FAKE LOGIN LOGIC
-            if (email === "admin@example.com" && password === "admin") {
-                // Set a fake session cookie
-                document.cookie = "admin_session=true; path=/; max-age=86400"; // 1 day
-                router.push("/admin/dashboard");
-            } else {
-                setError("Invalid credentials. Try admin@example.com / admin");
-                setIsLoading(false);
-            }
-        }, 1000);
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // FAKE LOGIN LOGIC
+        if (email === "admin@example.com" && password === "admin") {
+            // Set a fake session cookie
+            document.cookie = "admin_session=true; path=/; max-age=86400"; // 1 day
+            // Use window.location for full page reload to ensure middleware picks up cookie
+            window.location.href = "/admin/dashboard";
+        } else {
+            setError("Invalid credentials. Try admin@example.com / admin");
+            setIsLoading(false);
+        }
     };
 
     return (

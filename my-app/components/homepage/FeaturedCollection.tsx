@@ -19,9 +19,17 @@ export default function FeaturedCollection() {
                 setLoading(true);
                 const { data, error } = await getFeaturedProducts(8);
                 
-                if (error) throw error;
+                if (error) {
+                    console.error('Supabase error:', error);
+                    throw new Error(error.message || 'Failed to load products');
+                }
                 
-                setFeaturedProducts(adaptProductsToUI(data));
+                if (!data || data.length === 0) {
+                    console.warn('No featured products found');
+                    setFeaturedProducts([]);
+                } else {
+                    setFeaturedProducts(adaptProductsToUI(data));
+                }
             } catch (err) {
                 console.error('Error loading featured products:', err);
                 setError(err instanceof Error ? err.message : 'Failed to load products');

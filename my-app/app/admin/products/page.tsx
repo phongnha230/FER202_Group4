@@ -7,11 +7,14 @@ import {
     Search,
     Filter,
     Eye,
+    EyeOff,
     ChevronLeft,
     ChevronRight,
-    Loader2
+    Loader2,
+    ExternalLink
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,8 +33,19 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { getProducts } from "@/lib/api/product.api";
+import { getProducts, toggleProductVisibility } from "@/lib/api/product.api";
 import { adaptProductsToUI, UIProduct } from "@/lib/adapters/product.adapter";
+
+// Helper function to format date
+function formatDate(dateString?: string): string {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    }).toUpperCase();
+}
 
 export default function ProductsPage() {
     const [products, setProducts] = useState<UIProduct[]>([]);
@@ -39,12 +53,43 @@ export default function ProductsPage() {
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = React.useState("");
     const [categoryFilter, setCategoryFilter] = React.useState("all");
+    const [statusFilter, setStatusFilter] = React.useState("all");
+    const [togglingId, setTogglingId] = React.useState<string | null>(null);
+
+    // Handle toggle visibility
+    const handleToggleVisibility = async (product: UIProduct) => {
+        setTogglingId(product.id);
+        try {
+            const currentStatus = product.status as 'active' | 'hidden';
+            const { newStatus, success, error } = await toggleProductVisibility(product.id, currentStatus);
+            
+            if (success) {
+                // Update local state
+                setProducts(prev => prev.map(p => 
+                    p.id === product.id 
+                        ? { ...p, status: newStatus } 
+                        : p
+                ));
+            } else {
+                console.error('Failed to toggle visibility:', error);
+                // Show detailed error for debugging
+                const errorMsg = error?.message || error?.code || 'Unknown error';
+                alert(`Failed to update product visibility.\n\nError: ${errorMsg}\n\nPlease check if you have run the fix_products_rls.sql in Supabase.`);
+            }
+        } catch (err) {
+            console.error('Error toggling visibility:', err);
+            alert('An error occurred while updating visibility: ' + (err instanceof Error ? err.message : 'Unknown error'));
+        } finally {
+            setTogglingId(null);
+        }
+    };
 
     useEffect(() => {
         async function loadProducts() {
             try {
                 setLoading(true);
-                const { data, error } = await getProducts({ status: 'active' });
+                // Fetch ALL products for admin (including hidden)
+                const { data, error } = await getProducts({ status: 'all' });
                 
                 if (error) throw error;
                 
@@ -67,10 +112,21 @@ export default function ProductsPage() {
     const filteredProducts = products.filter((product) => {
         const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             product.id.includes(searchTerm) ||
-            product.slug.includes(searchTerm);
+            product.slug.includes(searchTerm) ||
+            (product.sku && product.sku.toLowerCase().includes(searchTerm.toLowerCase()));
         const matchesCategory = categoryFilter === "all" || product.category === categoryFilter;
+        
+        // Status filter logic
+        let matchesStatus = true;
+        if (statusFilter === "active") {
+            matchesStatus = product.status === 'active' && product.inStock === true;
+        } else if (statusFilter === "out_of_stock") {
+            matchesStatus = product.status === 'active' && (!product.inStock || (product.totalStock !== undefined && product.totalStock <= 0));
+        } else if (statusFilter === "hidden") {
+            matchesStatus = product.status === 'hidden';
+        }
 
-        return matchesSearch && matchesCategory;
+        return matchesSearch && matchesCategory && matchesStatus;
     });
 
     if (loading) {
@@ -116,7 +172,7 @@ export default function ProductsPage() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
                     <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                         <SelectTrigger className="w-full md:w-[180px] bg-white">
                             <SelectValue placeholder="Category" />
@@ -128,10 +184,17 @@ export default function ProductsPage() {
                             ))}
                         </SelectContent>
                     </Select>
-                    <Button variant="outline" className="gap-2 bg-white">
-                        <Filter className="h-4 w-4" />
-                        Filters
-                    </Button>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-full md:w-[150px] bg-white">
+                            <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Status</SelectItem>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                            <SelectItem value="hidden">Hidden</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
 
@@ -155,48 +218,93 @@ export default function ProductsPage() {
                                 <TableRow key={product.id}>
                                     <TableCell>
                                         <div className="relative h-12 w-12 overflow-hidden rounded-md border bg-slate-100">
-                                            {/* Placeholder image since we don't have real files yet */}
-                                            <div className="flex h-full w-full items-center justify-center bg-slate-200 text-xs text-slate-500">
-                                                IMG
-                                            </div>
+                                            {product.image ? (
+                                                <Image
+                                                    src={product.image}
+                                                    alt={product.name}
+                                                    fill
+                                                    className="object-cover"
+                                                    sizes="48px"
+                                                />
+                                            ) : (
+                                                <div className="flex h-full w-full items-center justify-center bg-slate-200 text-xs text-slate-500">
+                                                    IMG
+                                                </div>
+                                            )}
                                         </div>
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex flex-col">
                                             <span className="font-bold text-slate-900">{product.name}</span>
-                                            <span className="text-[10px] text-slate-500 uppercase">SKU: UN-{product.slug.substring(0, 6).toUpperCase()}</span>
+                                            <span className="text-[10px] text-slate-500 uppercase">SKU: {product.sku}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="outline" className="text-slate-600 uppercase text-[10px] tracking-wider">
-                                            {product.category}
+                                            {product.category || 'Uncategorized'}
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <span
-                                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${product.inStock
-                                                ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-rose-100 text-rose-700'
-                                                }`}
-                                        >
-                                            {product.inStock ? 'Active' : 'Out of Stock'}
-                                        </span>
+                                        {product.status === 'hidden' ? (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600">
+                                                Hidden
+                                            </span>
+                                        ) : !product.inStock || (product.totalStock !== undefined && product.totalStock <= 0) ? (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700">
+                                                Out of Stock
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">
+                                                Active
+                                            </span>
+                                        )}
                                     </TableCell>
                                     <TableCell className="font-bold text-slate-900">
                                         ${product.price.toFixed(2)}
+                                        {product.salePrice && (
+                                            <span className="ml-2 text-xs text-rose-600 line-through">
+                                                ${product.salePrice.toFixed(2)}
+                                            </span>
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-xs text-slate-500">
-                                        {/* Mock Date */}
-                                        OCT 24, 2023
+                                        {formatDate(product.updatedAt)}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            <Button variant="outline" size="icon" className="h-8 w-8">
-                                                <Eye className="h-4 w-4 text-slate-600" />
+                                            {/* Toggle Visibility Button */}
+                                            <Button 
+                                                variant="outline" 
+                                                size="icon" 
+                                                className={`h-8 w-8 ${product.status === 'hidden' ? 'border-orange-300 bg-orange-50' : ''}`}
+                                                onClick={() => handleToggleVisibility(product)}
+                                                disabled={togglingId === product.id}
+                                                title={product.status === 'hidden' ? 'Show product on store' : 'Hide product from store'}
+                                            >
+                                                {togglingId === product.id ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                                                ) : product.status === 'hidden' ? (
+                                                    <EyeOff className="h-4 w-4 text-orange-500" />
+                                                ) : (
+                                                    <Eye className="h-4 w-4 text-emerald-600" />
+                                                )}
                                             </Button>
-                                            <Button className="h-8 bg-blue-600 hover:bg-blue-700 text-xs font-bold uppercase tracking-wider px-3">
-                                                Edit Details
-                                            </Button>
+                                            {/* View on Store */}
+                                            <Link href={`/product/${product.slug}`} target="_blank">
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="icon" 
+                                                    className="h-8 w-8"
+                                                    title="View on store"
+                                                >
+                                                    <ExternalLink className="h-4 w-4 text-slate-600" />
+                                                </Button>
+                                            </Link>
+                                            <Link href={`/admin/products/${product.id}/edit`}>
+                                                <Button className="h-8 bg-blue-600 hover:bg-blue-700 text-xs font-bold uppercase tracking-wider px-3">
+                                                    Edit Details
+                                                </Button>
+                                            </Link>
                                         </div>
                                     </TableCell>
                                 </TableRow>

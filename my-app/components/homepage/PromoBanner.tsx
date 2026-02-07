@@ -103,6 +103,7 @@ export default function PromoBanner({
                         src={image}
                         alt={title}
                         fill
+                        sizes="(max-width: 1024px) 100vw, 50vw"
                         className="object-cover object-center"
                     />
                 </div>

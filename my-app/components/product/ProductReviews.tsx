@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Star, ThumbsUp, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getProductReviews } from '@/lib/api/review.api';
+import { getProductReviews, updateReview, deleteReview } from '@/lib/api/review.api';
 import { ReviewWithUser } from '@/types/review.type';
+import { useUserStore } from '@/store/user.store';
 
 interface ProductReviewsProps {
     productId: string;
@@ -16,6 +17,13 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isExpanded, setIsExpanded] = useState(false);
+    const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+    const [editTitle, setEditTitle] = useState('');
+    const [editContent, setEditContent] = useState('');
+    const [savingEdit, setSavingEdit] = useState(false);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+
+    const { user, isAuthenticated } = useUserStore();
 
     useEffect(() => {
         async function loadReviews() {
@@ -42,6 +50,90 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
 
     const toggleExpand = () => {
         setIsExpanded(!isExpanded);
+    };
+
+    const handleStartEdit = (review: ReviewWithUser) => {
+        setEditingReviewId(review.id);
+        setEditTitle(review.title || '');
+        setEditContent(review.content || '');
+    };
+
+    const handleCancelEdit = () => {
+        setEditingReviewId(null);
+        setEditTitle('');
+        setEditContent('');
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingReviewId || !isAuthenticated || !user) {
+            alert('Vui lòng đăng nhập để chỉnh sửa đánh giá');
+            return;
+        }
+
+        if (editTitle.trim().length < 3) {
+            alert('Tiêu đề phải có ít nhất 3 ký tự');
+            return;
+        }
+
+        if (editContent.trim().length < 20) {
+            alert('Nội dung phải có ít nhất 20 ký tự');
+            return;
+        }
+
+        try {
+            setSavingEdit(true);
+            const { error } = await updateReview(editingReviewId, user.id, {
+                title: editTitle,
+                content: editContent,
+            });
+
+            if (error) {
+                console.error('Error updating review:', error);
+                alert('Không thể cập nhật đánh giá, vui lòng thử lại');
+                return;
+            }
+
+            setReviews((prev) =>
+                prev.map((r) =>
+                    r.id === editingReviewId ? { ...r, title: editTitle, content: editContent } : r
+                )
+            );
+
+            handleCancelEdit();
+        } catch (err) {
+            console.error('Failed to update review:', err);
+            alert('Đã có lỗi xảy ra khi cập nhật đánh giá');
+        } finally {
+            setSavingEdit(false);
+        }
+    };
+
+    const handleDelete = async (reviewId: string) => {
+        if (!isAuthenticated || !user) {
+            alert('Vui lòng đăng nhập để xóa đánh giá');
+            return;
+        }
+
+        const confirmed = window.confirm('Bạn có chắc muốn xóa đánh giá này không?');
+        if (!confirmed) return;
+
+        try {
+            setDeletingId(reviewId);
+            const { error } = await deleteReview(reviewId, user.id);
+
+            if (error) {
+                console.error('Error deleting review:', error);
+                alert('Không thể xóa đánh giá, vui lòng thử lại');
+                return;
+            }
+
+            setReviews((prev) => prev.filter((r) => r.id !== reviewId));
+        } catch (err) {
+            console.error('Failed to delete review:', err);
+            alert('Đã có lỗi xảy ra khi xóa đánh giá');
+        } finally {
+            setDeletingId(null);
+        }
     };
 
     if (loading) {
@@ -91,6 +183,7 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
                                         src={review.user.avatar_url}
                                         alt={review.user.full_name || 'User'}
                                         fill
+                                        sizes="40px"
                                         className="object-cover"
                                     />
                                 ) : (
@@ -106,9 +199,52 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
                                             {review.user?.full_name || 'Anonymous'}
                                         </h3>
                                     </div>
-                                    <span className="text-xs text-gray-500">
-                                        {new Date(review.created_at).toLocaleDateString()}
-                                    </span>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs text-gray-500">
+                                            {new Date(review.created_at).toLocaleDateString()}
+                                        </span>
+                                        {isAuthenticated && user && review.user?.id === user.id && (
+                                            <div className="flex items-center gap-2">
+                                                {editingReviewId === review.id ? (
+                                                    <>
+                                                        <Button
+                                                            size="sm"
+                                                            className="h-7 px-3 text-xs"
+                                                            onClick={handleSaveEdit}
+                                                            disabled={savingEdit}
+                                                        >
+                                                            {savingEdit ? 'Saving...' : 'Save'}
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-7 px-3 text-xs"
+                                                            onClick={handleCancelEdit}
+                                                            disabled={savingEdit}
+                                                        >
+                                                            Cancel
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            className="text-xs text-blue-600 hover:underline"
+                                                            onClick={() => handleStartEdit(review)}
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            className="text-xs text-red-600 hover:underline"
+                                                            onClick={() => handleDelete(review.id)}
+                                                            disabled={deletingId === review.id}
+                                                        >
+                                                            {deletingId === review.id ? 'Deleting...' : 'Delete'}
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="flex items-center mb-2">
                                     {Array.from({ length: 5 }).map((_, i) => (
@@ -118,12 +254,33 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
                                         />
                                     ))}
                                 </div>
-                                {review.title && (
-                                    <h4 className="font-semibold text-sm mb-1">{review.title}</h4>
+                                {editingReviewId === review.id ? (
+                                    <div className="space-y-2 mb-4">
+                                        <input
+                                            type="text"
+                                            className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm"
+                                            value={editTitle}
+                                            onChange={(e) => setEditTitle(e.target.value)}
+                                            placeholder="Tiêu đề đánh giá"
+                                        />
+                                        <textarea
+                                            className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm"
+                                            rows={3}
+                                            value={editContent}
+                                            onChange={(e) => setEditContent(e.target.value)}
+                                            placeholder="Nội dung đánh giá"
+                                        />
+                                    </div>
+                                ) : (
+                                    <>
+                                        {review.title && (
+                                            <h4 className="font-semibold text-sm mb-1">{review.title}</h4>
+                                        )}
+                                        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                                            {review.content}
+                                        </p>
+                                    </>
                                 )}
-                                <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                                    {review.content}
-                                </p>
 
                                 {review.images && review.images.length > 0 && (
                                     <div className="flex gap-2 mb-4">
@@ -133,6 +290,7 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
                                                     src={img}
                                                     alt="Review image"
                                                     fill
+                                                    sizes="80px"
                                                     className="object-cover"
                                                 />
                                             </div>

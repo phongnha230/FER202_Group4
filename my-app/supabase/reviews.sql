@@ -55,24 +55,25 @@ create policy "public read reviews"
 create policy "user create own reviews" 
   on reviews for insert 
   with check (
-    user_id = auth.uid() 
+    user_id = (select auth.uid()) 
     and exists (
       select 1 from orders 
       where orders.id = order_id 
-        and orders.user_id = auth.uid()
+        and orders.user_id = (select auth.uid())
         and orders.order_status in ('completed', 'delivered')
     )
   );
 
 -- Users can update their own reviews
+-- Users can update their own reviews
 create policy "user update own reviews" 
   on reviews for update 
-  using (user_id = auth.uid());
+  using (user_id = (select auth.uid()));
 
 -- Users can delete their own reviews
 create policy "user delete own reviews" 
   on reviews for delete 
-  using (user_id = auth.uid());
+  using (user_id = (select auth.uid()));
 
 -- 5. RLS POLICIES FOR REVIEW REACTIONS
 
@@ -84,12 +85,12 @@ create policy "public read reactions"
 -- Authenticated users can add reactions
 create policy "authenticated create reactions" 
   on review_reactions for insert 
-  with check (auth.uid() is not null and user_id = auth.uid());
+  with check ((select auth.uid()) is not null and user_id = (select auth.uid()));
 
 -- Users can delete their own reactions
 create policy "user delete own reactions" 
   on review_reactions for delete 
-  using (user_id = auth.uid());
+  using (user_id = (select auth.uid()));
 
 -- 6. CREATE INDEXES FOR PERFORMANCE
 create index idx_reviews_product_id on reviews(product_id);
@@ -99,7 +100,9 @@ create index idx_review_reactions_review_id on review_reactions(review_id);
 
 -- 7. CREATE FUNCTION TO UPDATE updated_at TIMESTAMP
 create or replace function update_updated_at_column()
-returns trigger as $$
+returns trigger 
+set search_path = ''
+as $$
 begin
   new.updated_at = now();
   return new;

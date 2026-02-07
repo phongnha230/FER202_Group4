@@ -8,6 +8,7 @@ export interface UIProduct {
   id: string;
   name: string;
   category: string;
+  categoryId?: number;
   price: number;
   image: string;
   description: string;
@@ -19,6 +20,12 @@ export interface UIProduct {
   sizes?: string[];
   isNew?: boolean;
   salePrice?: number;
+  // Admin fields
+  status?: 'active' | 'hidden';
+  createdAt?: string;
+  updatedAt?: string;
+  sku?: string;
+  totalStock?: number;
 }
 
 /**
@@ -50,10 +57,16 @@ export function adaptProductToUI(product: ProductWithDetails): UIProduct {
     || product.image 
     || '';
 
+  // Calculate total stock from variants
+  const totalStock = product.variants
+    ? product.variants.reduce((sum, v) => sum + (v.stock || 0), 0)
+    : 0;
+
   return {
     id: product.id,
     name: product.name,
     category: product.category?.name || '',
+    categoryId: product.category?.id,
     price: product.base_price,
     image: mainImage,
     description: product.description || '',
@@ -65,6 +78,12 @@ export function adaptProductToUI(product: ProductWithDetails): UIProduct {
     sizes,
     isNew: product.is_new,
     salePrice: product.sale_price || undefined,
+    // Admin fields
+    status: product.status as 'active' | 'hidden',
+    createdAt: product.created_at,
+    updatedAt: product.created_at, // Use created_at as fallback since updated_at may not exist
+    sku: `UN-${product.slug?.substring(0, 6).toUpperCase() || product.id.substring(0, 6).toUpperCase()}`,
+    totalStock,
   };
 }
 
@@ -72,5 +91,9 @@ export function adaptProductToUI(product: ProductWithDetails): UIProduct {
  * Convert array of ProductWithDetails to UIProduct array
  */
 export function adaptProductsToUI(products: ProductWithDetails[]): UIProduct[] {
+  if (!products || !Array.isArray(products)) {
+    console.warn('Invalid products array passed to adapter:', products);
+    return [];
+  }
   return products.map(adaptProductToUI);
 }

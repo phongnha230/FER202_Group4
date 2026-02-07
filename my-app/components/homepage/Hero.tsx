@@ -13,6 +13,7 @@ export default function Hero() {
                         src="/banners/hero-model.jpg"
                         alt="Fashion model wearing casual streetwear"
                         fill
+                        sizes="(max-width: 1024px) 100vw, 50vw"
                         className="object-cover object-center"
                         priority
                     />

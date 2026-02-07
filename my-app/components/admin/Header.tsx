@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search, User } from "lucide-react";
+import { Bell, Search, User, LogOut, Settings } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,8 +11,15 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { supabase } from "@/lib/supabase/client";
+import Link from "next/link";
 
 export function Header() {
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        window.location.href = '/admin/login';
+    };
+
     return (
         <header className="flex h-16 w-full items-center justify-between border-b bg-white px-6">
             <div className="flex w-full max-w-sm items-center gap-2">
@@ -43,10 +50,28 @@ export function Header() {
                     <DropdownMenuContent align="end">
                         <DropdownMenuLabel>My Account</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>Profile</DropdownMenuItem>
-                        <DropdownMenuItem>Settings</DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                            <Link href="/account/profile" className="cursor-pointer">
+                                <User className="mr-2 h-4 w-4" />
+                                Profile
+                            </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                            <Link href="/admin/settings" className="cursor-pointer">
+                                <Settings className="mr-2 h-4 w-4" />
+                                Settings
+                            </Link>
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600">Sign out</DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                            <button
+                                onClick={handleSignOut}
+                                className="w-full cursor-pointer text-red-600"
+                            >
+                                <LogOut className="mr-2 h-4 w-4" />
+                                Sign out
+                            </button>
+                        </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>

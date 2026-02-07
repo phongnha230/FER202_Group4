@@ -96,7 +96,7 @@ export default function UpdatePasswordPage() {
                             New Password
                         </h1>
                         <p className="text-sm text-slate-500 leading-relaxed">
-                            Enter your new password below. Make sure it's strong and secure.
+                            Enter your new password below. Make sure it is strong and secure.
                         </p>
                     </div>
 
@@ -173,6 +173,7 @@ export default function UpdatePasswordPage() {
                             src="/banners/neon-nights.jpg"
                             alt="Urban Fashion"
                             fill
+                            sizes="(max-width: 1024px) 0vw, 50vw"
                             className="object-cover drop-shadow-2xl grayscale hover:grayscale-0 transition-all duration-500"
                         />
                         <div className="absolute inset-0 flex items-center justify-center -z-10">

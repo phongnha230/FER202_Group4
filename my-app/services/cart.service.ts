@@ -7,28 +7,36 @@ import { CartWithItems, CartItemWithProduct, AddToCartRequest, UpdateCartItemReq
  * Get or create a cart for the current user
  */
 export async function getOrCreateCart(userId: string): Promise<{ data: Cart | null; error: PostgrestError | null }> {
-  // Check if cart exists
-  const { data: existingCart, error: fetchError } = await supabase
+  console.log('cart.service: getOrCreateCart for userId:', userId);
+  
+  // Check if cart exists - get the most recent one (user might have multiple carts)
+  const { data: existingCarts, error: fetchError } = await supabase
     .from('carts')
     .select('*')
     .eq('user_id', userId)
-    .single();
+    .order('created_at', { ascending: false })
+    .limit(1);
 
-  if (fetchError && fetchError.code !== 'PGRST116') {
+  console.log('cart.service: Fetch cart result:', { existingCarts, error: fetchError?.code, message: fetchError?.message });
+
+  if (fetchError) {
     return { data: null, error: fetchError };
   }
 
-  if (existingCart) {
-    return { data: existingCart, error: null };
+  if (existingCarts && existingCarts.length > 0) {
+    console.log('cart.service: Using existing cart:', existingCarts[0].id);
+    return { data: existingCarts[0], error: null };
   }
 
   // Create new cart
+  console.log('cart.service: Creating new cart for user:', userId);
   const { data: newCart, error: createError } = await supabase
     .from('carts')
     .insert({ user_id: userId })
     .select()
     .single();
 
+  console.log('cart.service: Create cart result:', { newCart, error: createError?.code, message: createError?.message });
   return { data: newCart, error: createError };
 }
 
@@ -36,14 +44,20 @@ export async function getOrCreateCart(userId: string): Promise<{ data: Cart | nu
  * Get cart with all items and product details
  */
 export async function getCartWithItems(userId: string): Promise<{ data: CartWithItems | null; error: PostgrestError | null }> {
+  console.log('cart.service: getCartWithItems called for user:', userId);
+  
   const { data: cart, error: cartError } = await getOrCreateCart(userId);
 
-  
   if (cartError || !cart) {
+    console.error('cart.service: Failed to get/create cart:', cartError);
     return { data: null, error: cartError };
   }
 
+  console.log('cart.service: Cart found/created:', cart.id);
+
   // Fetch cart items with product and variant details
+  console.log('cart.service: Fetching cart items for cart_id:', cart.id);
+  
   const { data: items, error: itemsError } = await supabase
     .from('cart_items')
     .select(`
@@ -59,8 +73,11 @@ export async function getCartWithItems(userId: string): Promise<{ data: CartWith
     .eq('cart_id', cart.id);
 
   if (itemsError) {
+    console.error('cart.service: Failed to fetch cart items:', itemsError);
     return { data: null, error: itemsError };
   }
+
+  console.log('cart.service: Cart items fetched:', items?.length || 0);
 
   // Transform the data to match CartItemWithProduct type
   const transformedItems: CartItemWithProduct[] = (items || []).map((item: CartItem & { variant: ProductVariant & { product: Product & { images: ProductImage[] } } }) => ({
@@ -77,6 +94,7 @@ export async function getCartWithItems(userId: string): Promise<{ data: CartWith
     items: transformedItems,
   };
 
+  console.log('cart.service: Returning cart with items:', cartWithItems);
   return { data: cartWithItems, error: null };
 }
 
@@ -87,11 +105,16 @@ export async function addToCart(
   userId: string,
   request: AddToCartRequest
 ): Promise<{ data: CartItem | null; error: PostgrestError | null }> {
+  console.log('cart.service: addToCart called', { userId, request });
+  
   const { data: cart, error: cartError } = await getOrCreateCart(userId);
   
   if (cartError || !cart) {
+    console.error('cart.service: Failed to get/create cart for addToCart:', cartError);
     return { data: null, error: cartError };
   }
+
+  console.log('cart.service: Using cart:', cart.id);
 
   // Check if item already exists in cart
   const { data: existingItem } = await supabase
@@ -99,9 +122,10 @@ export async function addToCart(
     .select('*')
     .eq('cart_id', cart.id)
     .eq('variant_id', request.variant_id)
-    .single();
+    .maybeSingle();
 
   if (existingItem) {
+    console.log('cart.service: Item already exists, updating quantity:', existingItem);
     // Update quantity if item exists
     const { data, error } = await supabase
       .from('cart_items')
@@ -110,10 +134,13 @@ export async function addToCart(
       .select()
       .single();
     
+    console.log('cart.service: Update result:', { data, error });
     return { data, error };
   }
 
   // Add new item to cart
+  console.log('cart.service: Adding new item to cart');
+  
   const { data, error } = await supabase
     .from('cart_items')
     .insert({
@@ -124,6 +151,7 @@ export async function addToCart(
     .select()
     .single();
 
+  console.log('cart.service: Insert result:', { data, error: error?.message });
   return { data, error };
 }
 

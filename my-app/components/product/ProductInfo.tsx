@@ -10,7 +10,7 @@ import { getCart } from '@/lib/cart'; // Added getCart
 import CartSuccessModal from '../cart/CartSuccessModal'; // Import Modal
 import { CartItemType } from '@/components/cart/cart-types';
 import { useUserStore } from '@/store/user.store';
-import { addToCart as apiAddToCart } from '@/services/cart.service';
+import { addToCart as apiAddToCart, getCartWithItems } from '@/services/cart.service';
 import {
     Accordion,
     AccordionContent,
@@ -63,11 +63,33 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
         setCurrentStock(matchingVariant ? matchingVariant.stock : null);
     }, [selectedColor, selectedSize, variants]);
 
-    const updateCartData = () => {
+    const updateCartData = async () => {
         if (typeof window === 'undefined') return;
-        const cart = getCart();
-        setCartCount(cart.reduce((total, item) => total + item.quantity, 0));
-        setCartTotal(cart.reduce((total, item) => total + (item.price * item.quantity), 0));
+        
+        const { user, isAuthenticated } = useUserStore.getState();
+        
+        if (isAuthenticated && user?.id) {
+            // Fetch from Supabase for authenticated users
+            try {
+                const { data: cartData } = await getCartWithItems(user.id);
+                if (cartData?.items) {
+                    setCartCount(cartData.items.reduce((total, item) => total + item.quantity, 0));
+                    setCartTotal(cartData.items.reduce((total, item) => total + ((item.variant?.price || 0) * item.quantity), 0));
+                } else {
+                    setCartCount(0);
+                    setCartTotal(0);
+                }
+            } catch (err) {
+                console.error('Error fetching cart:', err);
+                setCartCount(0);
+                setCartTotal(0);
+            }
+        } else {
+            // Use localStorage for guests
+            const cart = getCart();
+            setCartCount(cart.reduce((total, item) => total + item.quantity, 0));
+            setCartTotal(cart.reduce((total, item) => total + (item.price * item.quantity), 0));
+        }
     };
 
     useEffect(() => {
@@ -83,6 +105,7 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
             clearTimeout(timer);
             window.removeEventListener('cart-updated', handleCartUpdate);
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
 
@@ -164,35 +187,74 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                     onClick={async () => {
                         const { user, isAuthenticated } = useUserStore.getState();
                         
-                        if (!isAuthenticated || !user) {
-                            router.push('/login');
-                            return;
-                        }
-
-                        // Find matching variant
+                        // Debug logging
+                        console.log('Add to Cart - Selected:', { color: selectedColor, size: selectedSize });
+                        console.log('Add to Cart - Available variants:', variants);
+                        
+                        // Find matching variant (case-insensitive + trim)
                         const matchingVariant = variants.find(v => 
-                            v.color === selectedColor && v.size === selectedSize
+                            v.color?.toLowerCase().trim() === selectedColor?.toLowerCase().trim() && 
+                            v.size?.toLowerCase().trim() === selectedSize?.toLowerCase().trim()
                         );
 
                         if (!matchingVariant) {
-                             alert("Please select a valid size and color");
+                             console.error('No matching variant found!');
+                             alert(`Variant not found. Selected: ${selectedColor}/${selectedSize}. Please try refreshing the page.`);
                              return;
                         }
+                        
+                        console.log('Matched variant:', matchingVariant);
 
-                        try {
-                             const { data, error } = await apiAddToCart(user.id, {
-                                 variant_id: matchingVariant.id,
-                                 quantity: 1
-                             });
+                        let addedItem: CartItemType | null = null;
 
-                             if (error) {
-                                 console.error("Failed to add to cart", error);
-                                 alert("Failed to add to cart");
-                                 return;
-                             }
+                        if (isAuthenticated && user) {
+                             // LOGGED IN: Add to Supabase
+                            try {
+                                 const { data, error } = await apiAddToCart(user.id, {
+                                     variant_id: matchingVariant.id,
+                                     quantity: 1
+                                 });
 
+                                 if (error) {
+                                     console.error("Failed to add to cart", error);
+                                     alert("Failed to add to cart: " + error.message);
+                                     return;
+                                 }
+                                 
+                                 // Construct item for modal
+                                 addedItem = {
+                                    id: data?.id || matchingVariant.id,
+                                    productId: product.id,
+                                    name: product.name,
+                                    price: matchingVariant.price || product.salePrice || product.price,
+                                    image: product.image,
+                                    color: selectedColor,
+                                    baseColor: product.colors?.[0], 
+                                    size: selectedSize,
+                                    quantity: 1,
+                                };
+                                
+                                // Fetch updated cart to get accurate count and total
+                                const { data: updatedCart } = await getCartWithItems(user.id);
+                                if (updatedCart?.items && updatedCart.items.length > 0) {
+                                    setCartCount(updatedCart.items.reduce((total, item) => total + item.quantity, 0));
+                                    setCartTotal(updatedCart.items.reduce((total, item) => total + ((item.variant?.price || 0) * item.quantity), 0));
+                                } else {
+                                    // Fallback: use the item we just added if fetch returns empty
+                                    // This handles race conditions or RLS timing issues
+                                    console.log('Cart fetch returned empty, using fallback for added item');
+                                    setCartCount(prev => prev + 1);
+                                    setCartTotal(prev => prev + (addedItem?.price || 0));
+                                }
+                            } catch (err) {
+                                console.error("Error adding to cart", err);
+                                return;
+                            }
+                        } else {
+                            // GUEST: Add to Local Storage
+                            const { addToCart: localAddToCart } = await import('@/lib/cart');
                             const newItem: CartItemType = {
-                                id: data?.id || matchingVariant.id, // Use DB ID
+                                id: matchingVariant.id, // Temporary ID (variant ID)
                                 productId: product.id,
                                 name: product.name,
                                 price: product.salePrice || product.price,
@@ -202,18 +264,18 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                                 size: selectedSize,
                                 quantity: 1,
                             };
-                            
-                            // For modal display (optimistic or actual)
-                            setLastAddedItem(newItem);
+                            localAddToCart(newItem);
+                            addedItem = newItem;
+                        }
+
+                        if (addedItem) {
+                            setLastAddedItem(addedItem);
                             setIsModalOpen(true);
                             
-                            // Trigger global cart update event for header counters if needed
-                             if (typeof window !== 'undefined') {
-                                 window.dispatchEvent(new Event('cart-updated'));
-                             }
-
-                        } catch (err) {
-                            console.error("Error adding to cart", err);
+                            // Trigger global cart update event
+                            if (typeof window !== 'undefined') {
+                                window.dispatchEvent(new Event('cart-updated'));
+                            }
                         }
                     }}
                 >
@@ -222,35 +284,76 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                 <Button
                     className="flex-1 h-12 text-base btn-primary"
                     size="lg"
-                    onClick={async () => {
+                    disabled={variants.length === 0}
+                    onClick={async (e) => {
                         const { user, isAuthenticated } = useUserStore.getState();
                          if (!isAuthenticated || !user) {
-                            router.push('/login');
+                            if (window.confirm("You need to login to proceed. Do you want to login now?")) {
+                                const next = typeof window !== 'undefined' ? window.location.pathname : '/';
+                                router.push(`/login?next=${encodeURIComponent(next)}`);
+                            }
                             return;
                         }
 
-                         // Find matching variant
-                        const matchingVariant = variants.find(v => 
-                            v.color === selectedColor && v.size === selectedSize
-                        );
-
-                        if (!matchingVariant) {
-                             alert("Please select a valid size and color");
-                             return;
+                        // Check if variants are loaded
+                        if (variants.length === 0) {
+                            alert('Please wait for product data to load...');
+                            return;
                         }
 
+                        console.log('Buy Now - variants:', variants);
+                        console.log('Buy Now - selected:', { color: selectedColor, size: selectedSize });
+
+                         // Find matching variant (case-insensitive + trim)
+                        const matchingVariant = variants.find(v => 
+                            v.color?.toLowerCase().trim() === selectedColor?.toLowerCase().trim() && 
+                            v.size?.toLowerCase().trim() === selectedSize?.toLowerCase().trim()
+                        );
+
+                        console.log('Buy Now - matchingVariant:', matchingVariant);
+
+                        if (!matchingVariant) {
+                            // Debug: show available variants
+                            const available = variants.map(v => `${v.color}/${v.size}`).join(', ');
+                            console.error('Available variants:', available);
+                            alert(`Variant not found. Selected: ${selectedColor}/${selectedSize}.\nAvailable: ${available}`);
+                            return;
+                        }
+
+                        // Disable button and show loading
+                        const button = e.currentTarget;
+                        const originalText = button.textContent;
+                        button.disabled = true;
+                        button.textContent = 'Processing...';
+
                         try {
-                             await apiAddToCart(user.id, {
-                                 variant_id: matchingVariant.id,
-                                 quantity: 1
-                             });
-                             router.push('/checkout');
+                            // Store "Buy Now" item in sessionStorage (NOT adding to cart)
+                            const buyNowItem = {
+                                id: `buynow-${matchingVariant.id}`,
+                                variant_id: matchingVariant.id,
+                                product_id: product.id,
+                                product_name: product.name,
+                                product_image: product.image,
+                                variant_color: selectedColor,
+                                variant_size: selectedSize,
+                                variant_price: matchingVariant.price,
+                                quantity: 1,
+                            };
+                            
+                            sessionStorage.setItem('buyNowItem', JSON.stringify(buyNowItem));
+                            console.log('Buy Now: Stored item in session:', buyNowItem);
+                             
+                            // Redirect to checkout with buyNow flag
+                            router.push('/checkout?buyNow=true');
                         } catch(e) {
-                            console.error(e);
+                            console.error('Error during buy now:', e);
+                            alert('Failed to process. Please try again.');
+                            button.disabled = false;
+                            button.textContent = originalText || 'Buy Now';
                         }
                     }}
                 >
-                    Buy Now
+                    {variants.length === 0 ? 'Loading...' : 'Buy Now'}
                 </Button>
                 <Button variant="outline" size="icon" className="h-12 w-12 shrink-0 border-gray-200">
                     <Heart className="h-5 w-5" />

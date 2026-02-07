@@ -14,6 +14,7 @@ export default function StyleInspiration() {
                         src="/banners/style-inspiration.jpg"
                         alt="Group of people in streetwear fashion"
                         fill
+                        sizes="100vw"
                         className="object-cover object-center"
                         priority
                     />

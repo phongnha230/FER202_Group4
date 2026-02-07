@@ -166,6 +166,7 @@ export default function ForgotPasswordPage() {
                             src="/banners/neon-nights.jpg"
                             alt="Urban Fashion"
                             fill
+                            sizes="(max-width: 1024px) 0vw, 50vw"
                             className="object-cover drop-shadow-2xl grayscale hover:grayscale-0 transition-all duration-500"
                         />
                         <div className="absolute inset-0 flex items-center justify-center -z-10">

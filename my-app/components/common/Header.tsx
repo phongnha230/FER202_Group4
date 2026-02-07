@@ -17,7 +17,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import clsx from 'clsx';
 import { supabase } from '@/lib/supabase/client';
 import { useState, useEffect } from "react";
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import type { User as SupabaseUser, RealtimeChannel } from '@supabase/supabase-js';
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -28,7 +28,22 @@ export default function Header() {
 
   // Listen for cart updates and Auth state
   useEffect(() => {
-    const updateCount = () => {
+    const updateCount = async () => {
+      // If user is authenticated, fetch from Supabase
+      if (user?.id) {
+        try {
+          const { getCartSummary } = await import('@/services/cart.service');
+          const { data, error } = await getCartSummary(user.id);
+          if (!error && data) {
+            setCartCount(data.total_items);
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to fetch cart count:', err);
+        }
+      }
+      
+      // Fallback to localStorage for unauthenticated users
       const cart = localStorage.getItem('urban_nest_cart');
       const items: { quantity: number }[] = cart ? JSON.parse(cart) : [];
       const total = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -50,20 +65,55 @@ export default function Header() {
     window.addEventListener('storage', updateCount);
 
     // Auth Listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
         setUser(session?.user || null);
+        // Update cart count when auth state changes
+        await updateCount();
     });
+
+    // Subscribe to cart changes in Supabase for authenticated users
+    let cartSubscription: RealtimeChannel | null = null;
+    const setupCartSubscription = async () => {
+      if (user?.id) {
+        try {
+          const { getOrCreateCart } = await import('@/services/cart.service');
+          const { data: cart } = await getOrCreateCart(user.id);
+          
+          if (cart) {
+            cartSubscription = supabase
+              .channel(`cart-${cart.id}`)
+              .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'cart_items', filter: `cart_id=eq.${cart.id}` },
+                () => {
+                  updateCount();
+                }
+              )
+              .subscribe();
+          }
+        } catch (err) {
+          console.error('Failed to setup cart subscription:', err);
+        }
+      }
+    };
+    
+    setupCartSubscription();
 
     return () => {
       window.removeEventListener('cart-updated', updateCount);
       window.removeEventListener('storage', updateCount);
       subscription.unsubscribe();
+      if (cartSubscription) {
+        cartSubscription.unsubscribe();
+      }
     };
-  }, []);
+  }, [user?.id]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.refresh();
+    // Clear any local storage
+    localStorage.removeItem('urban_nest_cart');
+    // Full page reload to clear all state and redirect to home
+    window.location.href = '/';
   };
 
   const navLinks = [
@@ -144,9 +194,14 @@ export default function Header() {
                         </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Log out</span>
+                    <DropdownMenuItem asChild>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full cursor-pointer text-red-600 focus:text-red-600"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Log out</span>
+                      </button>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

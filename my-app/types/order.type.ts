@@ -3,7 +3,9 @@ import { Order as DBOrder, OrderItem as DBOrderItem, Product, ProductVariant, Sh
 // Extended OrderItem with product details
 export interface OrderItemWithProduct extends DBOrderItem {
   variant?: ProductVariant;
-  product?: Product;
+  product?: Product & {
+    images?: Array<{ image_url: string }>;
+  };
 }
 
 // Extended Order with all related data
@@ -18,6 +20,8 @@ export interface CreateOrderRequest {
   cart_id: string;
   total_price: number;
   payment_method: 'online' | 'cod';
+  /** Gateway for online payment: momo, vnpay, card. Required when payment_method is 'online'. */
+  payment_gateway?: 'momo' | 'vnpay' | 'card';
   shipping_info: {
     receiver_name: string;
     receiver_phone: string;

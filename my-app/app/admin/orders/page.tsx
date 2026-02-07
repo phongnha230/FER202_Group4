@@ -51,7 +51,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabase/client";
-import { restoreStock } from "@/services/inventory.service";
 
 interface Order {
     id: string;
@@ -419,52 +418,20 @@ export default function OrdersPage() {
         return allStatuses;
     };
 
-    // Map order status to shipping status
-    const getShippingStatus = (orderStatus: string) => {
-        switch (orderStatus) {
-            case 'pending_payment':
-            case 'paid':
-            case 'processing':
-                return 'created';
-            case 'shipping':
-                return 'shipping';
-            case 'delivered':
-            case 'completed':
-                return 'delivered';
-            default:
-                return 'created';
-        }
-    };
-
-    // Handle Update Status
+    // Handle Update Status (uses API to also create shipping_logs + notifications)
     const handleUpdateStatus = async () => {
         if (!updateStatusOrderId || !newStatus) return;
         
         setUpdatingStatus(true);
         try {
-            // Update order status
-            const { error: orderError } = await supabase
-                .from('orders')
-                .update({ 
-                    order_status: newStatus,
-                    // Also update payment_status if moving to paid or beyond
-                    ...(newStatus !== 'pending_payment' && { payment_status: 'paid' })
-                })
-                .eq('id', updateStatusOrderId);
+            const res = await fetch('/api/admin/orders/update-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId: updateStatusOrderId, newStatus }),
+            });
 
-            if (orderError) throw orderError;
-
-            // Update shipping_orders status to sync with order status
-            const shippingStatus = getShippingStatus(newStatus);
-            const { error: shippingError } = await supabase
-                .from('shipping_orders')
-                .update({ status: shippingStatus })
-                .eq('order_id', updateStatusOrderId);
-
-            if (shippingError) {
-                console.warn('Failed to update shipping status:', shippingError);
-                // Don't throw - shipping update is secondary
-            }
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to update status');
 
             // Update local state
             setOrders(prev => prev.map(order =>
@@ -481,7 +448,7 @@ export default function OrdersPage() {
             setUpdateStatusOrderId(null);
         } catch (error) {
             console.error('Error updating status:', error);
-            alert('Failed to update order status');
+            alert((error as Error).message || 'Failed to update order status');
         } finally {
             setUpdatingStatus(false);
         }
@@ -499,53 +466,20 @@ export default function OrdersPage() {
         return ['pending_payment', 'paid', 'processing'].includes(status);
     };
 
-    // Handle Cancel Order
+    // Handle Cancel Order (uses API to also create notification)
     const handleCancelOrder = async () => {
         if (!cancelOrderId) return;
         
         setCancellingOrder(true);
         try {
-            // Get order items to restore stock
-            const { data: orderData, error: fetchError } = await supabase
-                .from('orders')
-                .select(`
-                    order_status,
-                    order_items (variant_id, quantity)
-                `)
-                .eq('id', cancelOrderId)
-                .single();
-
-            if (fetchError) throw fetchError;
-
-            // Check if can cancel
-            if (!canCancelOrder(orderData.order_status)) {
-                alert('Cannot cancel order in current status');
-                return;
-            }
-
-            // Update order status to cancelled
-            const { error: updateError } = await supabase
-                .from('orders')
-                .update({ order_status: 'cancelled' })
-                .eq('id', cancelOrderId);
-
-            if (updateError) throw updateError;
-
-            // Restore stock using inventory service
-            const itemsToRestore = (orderData.order_items || []).map((item) => {
-                const typedItem = item as { variant_id: string; quantity: number };
-                return {
-                    variant_id: typedItem.variant_id,
-                    quantity: typedItem.quantity
-                };
+            const res = await fetch('/api/admin/orders/cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId: cancelOrderId }),
             });
 
-            if (itemsToRestore.length > 0) {
-                const { error: stockError } = await restoreStock(itemsToRestore, supabase);
-                if (stockError) {
-                    console.warn('Failed to restore stock (non-blocking):', stockError);
-                }
-            }
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to cancel order');
 
             // Update local state
             setOrders(prev => prev.map(order =>
@@ -558,7 +492,7 @@ export default function OrdersPage() {
             setCancelOrderId(null);
         } catch (error) {
             console.error('Error cancelling order:', error);
-            alert('Failed to cancel order');
+            alert((error as Error).message || 'Failed to cancel order');
         } finally {
             setCancellingOrder(false);
         }

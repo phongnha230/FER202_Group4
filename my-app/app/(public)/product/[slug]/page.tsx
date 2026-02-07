@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
 import { getProductBySlug } from '@/lib/api/product.api';
 import { adaptProductToUI } from '@/lib/adapters/product.adapter';
 import ProductContainer from '@/components/product/ProductContainer';
@@ -14,7 +15,8 @@ type Props = {
 
 export default async function ProductPage({ params }: Props) {
     const { slug } = await params;
-    const { data: product, error } = await getProductBySlug(slug);
+    const supabase = await createClient();
+    const { data: product, error } = await getProductBySlug(slug, supabase);
 
     if (error || !product) {
         notFound();

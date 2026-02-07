@@ -327,6 +327,7 @@ export default function RegisterPage() {
                             src="/banners/neon-nights.jpg"
                             alt="Exclusive Footwear"
                             fill
+                            sizes="(max-width: 1024px) 0vw, 50vw"
                             className="object-cover drop-shadow-2xl grayscale hover:grayscale-0 transition-all duration-500"
                         />
                         {/* Fallback to text if image fails or use a different known image */}

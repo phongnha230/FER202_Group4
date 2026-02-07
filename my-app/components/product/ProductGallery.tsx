@@ -61,6 +61,7 @@ export default function ProductGallery({ product, activeImage, selectedColor, on
                                 src={img}
                                 alt={`Product view ${idx + 1}`}
                                 fill
+                                sizes="80px"
                                 className="object-cover"
                             />
                         </button>
@@ -75,6 +76,7 @@ export default function ProductGallery({ product, activeImage, selectedColor, on
                     src={selectedImage}
                     alt={product.name}
                     fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 600px"
                     priority
                     className="object-cover"
                 />
@@ -85,6 +87,7 @@ export default function ProductGallery({ product, activeImage, selectedColor, on
                         src={selectedImage}
                         alt={`${product.name} - ${selectedColor}`}
                         fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 600px"
                         className="object-cover transition-all duration-500 ease-in-out opacity-100 z-10"
                         style={{
                             ...imageStyle,
@@ -112,6 +115,7 @@ export default function ProductGallery({ product, activeImage, selectedColor, on
                                     src={product.image} // Always use base image for thumbnails to ensure filter works correctly
                                     alt={`Preview ${color}`}
                                     fill
+                                    sizes="(max-width: 768px) 64px, 80px"
                                     className="object-cover"
                                     // Apply filter unless it's the base color (assuming first color is base)
                                     style={color !== product.colors?.[0] ? getColorFilter(color, product.colors?.[0]) : undefined}

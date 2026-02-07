@@ -1,5 +1,6 @@
 import Header from '@/components/common/Header';
 import Footer from '@/components/common/Footer';
+import ChatWidget from '@/components/chat/ChatWidget';
 
 export default function StorefrontLayout({
     children,
@@ -13,6 +14,7 @@ export default function StorefrontLayout({
                 {children}
             </main>
             <Footer />
+            <ChatWidget />
         </>
     );
 }

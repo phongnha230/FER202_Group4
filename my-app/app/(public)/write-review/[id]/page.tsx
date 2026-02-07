@@ -1,28 +1,179 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { Star, Camera, X, ThumbsUp, ThumbsDown, Info } from "lucide-react";
+import { Star, Camera, X, ThumbsUp, ThumbsDown, Info, Loader2, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabase/client";
+import { useUserStore } from "@/store/user.store";
+import { createReview } from "@/services/review.service";
 import clsx from "clsx";
+
+interface ProductInfo {
+    id: string;
+    name: string;
+    image: string;
+    slug?: string;
+    size: string;
+    color: string;
+}
 
 export default function WriteReviewPage() {
     const params = useParams();
     const router = useRouter();
     const orderId = params.id as string;
+    const { user, isAuthenticated } = useUserStore();
 
-    // Mock product for demo - in real app this would fetch from order details
-    const product = useMemo(() => ({
-        id: '1',
-        name: 'Essential Streetwear Hoodie',
-        image: '/images/product-mock.jpg', // Default placeholder
-        price: 89.99
-    }), []);
+    const [product, setProduct] = useState<ProductInfo | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [submitted, setSubmitted] = useState(false);
+
+    // Fetch order details to get product info
+    useEffect(() => {
+        async function fetchOrderProduct() {
+            if (!orderId) return;
+
+            try {
+                const { data, error } = await supabase
+                    .from('orders')
+                    .select(`
+                        id,
+                        order_items (
+                            id,
+                            variant:product_variants (
+                                size,
+                                color,
+                                product:products (
+                                    id,
+                                    name,
+                                    image,
+                                    slug
+                                )
+                            )
+                        )
+                    `)
+                    .eq('id', orderId)
+                    .single();
+
+                if (error) {
+                    console.error('Error fetching order:', error);
+                    return;
+                }
+
+                // Get the first item from the order
+                const firstItem = (data?.order_items as unknown[])?.[0] as {
+                    variant?: {
+                        size?: string;
+                        color?: string;
+                        product?: {
+                            id?: string;
+                            name?: string;
+                            image?: string;
+                            slug?: string;
+                        };
+                    };
+                } | undefined;
+
+                if (firstItem?.variant?.product) {
+                    setProduct({
+                        id: firstItem.variant.product.id || 'unknown',
+                        name: firstItem.variant.product.name || 'Unknown Product',
+                        image: firstItem.variant.product.image || '/images/product-mock.jpg',
+                        slug: firstItem.variant.product.slug,
+                        size: firstItem.variant.size || 'N/A',
+                        color: firstItem.variant.color || 'N/A',
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to fetch order product:', err);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchOrderProduct();
+    }, [orderId]);
+
+    // Handle submit review
+    const handleSubmitReview = async () => {
+        // Validation
+        if (!isAuthenticated || !user) {
+            alert('Vui lòng đăng nhập để đánh giá');
+            router.push('/login');
+            return;
+        }
+
+        if (!product || product.id === 'unknown') {
+            alert('Không tìm thấy thông tin sản phẩm');
+            return;
+        }
+
+        if (rating === 0) {
+            alert('Vui lòng chọn số sao đánh giá');
+            return;
+        }
+
+        if (title.length < 3) {
+            alert('Tiêu đề đánh giá phải có ít nhất 3 ký tự');
+            return;
+        }
+
+        if (content.length < 20) {
+            alert('Nội dung đánh giá phải có ít nhất 20 ký tự');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            const { data, error } = await createReview(user.id, {
+                order_id: orderId,
+                product_id: product.id,
+                rating,
+                title,
+                content,
+                fit_rating: fit,
+                images,
+            });
+
+            if (error) {
+                console.error('Error creating review:', error);
+                alert(`Lỗi: ${error.message}`);
+                return;
+            }
+
+            if (data) {
+                setSubmitted(true);
+                // Redirect to product page after 2 seconds
+                setTimeout(() => {
+                    if (product.slug) {
+                        router.push(`/product/${product.slug}`);
+                    } else {
+                        router.push('/my-orders');
+                    }
+                }, 2000);
+            }
+        } catch (err) {
+            console.error('Failed to submit review:', err);
+            alert('Đã có lỗi xảy ra khi gửi đánh giá');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    // Fallback product if not loaded
+    const displayProduct = product || {
+        id: 'unknown',
+        name: 'Loading...',
+        image: '/images/product-mock.jpg',
+        size: 'N/A',
+        color: 'N/A',
+    };
 
     const [rating, setRating] = useState(0);
     const [hoverRating, setHoverRating] = useState(0);
-    const [fit, setFit] = useState(50); // 0 (Small), 50 (True to Size), 100 (Large)
+    const [fit, setFit] = useState<0 | 50 | 100>(50); // 0 (Small), 50 (True to Size), 100 (Large)
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
     const [images, setImages] = useState<string[]>([]);
@@ -103,11 +254,17 @@ export default function WriteReviewPage() {
                     {/* Product Summary Card */}
                     <div className="bg-white border border-slate-100 rounded-xl p-4 flex items-center gap-6 shadow-sm">
                         <div className="relative h-20 w-20 bg-slate-50 rounded-lg overflow-hidden flex-shrink-0">
-                            <Image src={product.image} alt={product.name} fill className="object-cover" />
+                            {loading ? (
+                                <div className="w-full h-full flex items-center justify-center">
+                                    <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+                                </div>
+                            ) : (
+                                <Image src={displayProduct.image} alt={displayProduct.name} fill sizes="80px" className="object-cover" />
+                            )}
                         </div>
                         <div>
-                            <h3 className="font-bold text-slate-900 text-lg">{product.name}</h3>
-                            <p className="text-sm text-slate-500">Size L • Order #{orderId || '45920'}</p>
+                            <h3 className="font-bold text-slate-900 text-lg">{displayProduct.name}</h3>
+                            <p className="text-sm text-slate-500">Size {displayProduct.size} • Order #{orderId?.substring(0, 8) || '45920'}</p>
                         </div>
                     </div>
 
@@ -148,7 +305,7 @@ export default function WriteReviewPage() {
                                 max="100"
                                 step="50"
                                 value={fit}
-                                onChange={(e) => setFit(parseInt(e.target.value))}
+                                onChange={(e) => setFit(parseInt(e.target.value) as 0 | 50 | 100)}
                                 className="w-full h-[6px] bg-slate-100 rounded-full appearance-none cursor-pointer accent-blue-700 relative z-10 
                                 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-blue-800 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-none
                                 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-blue-800 [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:rounded-full shadow-none"
@@ -168,7 +325,7 @@ export default function WriteReviewPage() {
                             <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Review Title</label>
                             <input
                                 type="text"
-                                placeholder="e.g. Best cargos I&apos;ve ever owned"
+                                placeholder="e.g. Best cargos I've ever owned"
                                 className="w-full border-b border-slate-200 py-3 text-lg font-medium focus:outline-none focus:border-blue-600 transition-colors placeholder:text-slate-300"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
@@ -197,7 +354,7 @@ export default function WriteReviewPage() {
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                 {images.map((img, idx) => (
                                     <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 group">
-                                        <Image src={img} alt={`Upload ${idx}`} fill className="object-cover" />
+                                        <Image src={img} alt={`Upload ${idx}`} fill sizes="(max-width: 640px) 50vw, 25vw" className="object-cover" />
                                         <button
                                             onClick={() => handleRemoveImage(idx)}
                                             className="absolute top-2 right-2 p-1 bg-white/80 backdrop-blur-sm rounded-full text-slate-900 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -233,18 +390,36 @@ export default function WriteReviewPage() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-8 pt-6">
-                        <Button
-                            className="bg-blue-700 hover:bg-blue-800 text-white font-bold h-14 px-12 rounded-lg transition-all active:scale-95 shadow-lg shadow-blue-200"
-                            onClick={() => router.push('/my-orders')}
-                        >
-                            POST REVIEW
-                        </Button>
-                        <button
-                            className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors"
-                            onClick={() => router.back()}
-                        >
-                            Cancel
-                        </button>
+                        {submitted ? (
+                            <div className="flex items-center gap-3 text-emerald-600">
+                                <CheckCircle className="w-6 h-6" />
+                                <span className="font-bold">Đánh giá đã được gửi thành công! Đang chuyển hướng...</span>
+                            </div>
+                        ) : (
+                            <>
+                                <Button
+                                    className="bg-blue-700 hover:bg-blue-800 text-white font-bold h-14 px-12 rounded-lg transition-all active:scale-95 shadow-lg shadow-blue-200 disabled:opacity-50"
+                                    onClick={handleSubmitReview}
+                                    disabled={submitting || loading}
+                                >
+                                    {submitting ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                            ĐANG GỬI...
+                                        </>
+                                    ) : (
+                                        'POST REVIEW'
+                                    )}
+                                </Button>
+                                <button
+                                    className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors"
+                                    onClick={() => router.back()}
+                                    disabled={submitting}
+                                >
+                                    Cancel
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -292,7 +467,7 @@ export default function WriteReviewPage() {
 
                             {/* Content */}
                             <h2 className="text-xl font-black text-slate-900 mb-3 leading-tight">
-                                {title || "Best cargos I&apos;ve ever owned"}
+                                {title || "Best cargos I've ever owned"}
                             </h2>
                             <p className="text-sm text-slate-500 leading-relaxed mb-6">
                                 {content || "Honestly, I was skeptical about the fit at first, but these are perfect. The material feels heavy and durable, exactly what I wanted for a daily driver. Pockets are super functional too."}
@@ -301,9 +476,10 @@ export default function WriteReviewPage() {
                             {/* Review Image (Mock/Uploaded) */}
                             <div className="relative aspect-[4/3] w-32 bg-slate-100 rounded-xl overflow-hidden mb-6 group">
                                 <Image
-                                    src={images.length > 0 ? images[0] : product.image}
+                                    src={images.length > 0 ? images[0] : displayProduct.image}
                                     alt="User upload preview"
                                     fill
+                                    sizes="128px"
                                     className="object-cover transition-transform group-hover:scale-110"
                                 />
                             </div>
