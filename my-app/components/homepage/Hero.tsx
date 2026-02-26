@@ -1,7 +1,11 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
+import CountUp from '@/components/ui/CountUp';
+import BlurText from '@/components/ui/BlurText';
 
 export default function Hero() {
     return (
@@ -29,16 +33,23 @@ export default function Hero() {
                     </div>
 
                     <div className="relative z-10 max-w-xl">
-                        {/* Heading */}
-                        <h1 className="text-6xl md:text-7xl lg:text-8xl font-black text-slate-900 leading-[0.9] tracking-tight mb-8">
-                            WEAR
-                            <br />
-                            CHILL.
-                            <br />
-                            <span className="text-cyan-500 italic">LIVE</span>
-                            <br />
-                            FREE.
-                        </h1>
+                        {/* Animated Heading with BlurText */}
+                        <div className="mb-8 space-y-2">
+                            <BlurText
+                                text="WEAR CHILL."
+                                delay={150}
+                                animateBy="words"
+                                direction="top"
+                                className="text-6xl md:text-7xl lg:text-8xl font-black text-slate-900 leading-[0.9] tracking-tight block"
+                            />
+                            <BlurText
+                                text="LIVE FREE."
+                                delay={200}
+                                animateBy="words"
+                                direction="top"
+                                className="text-6xl md:text-7xl lg:text-8xl font-black text-cyan-500 italic leading-[0.9] tracking-tight block"
+                            />
+                        </div>
 
                         {/* Description */}
                         <p className="text-base md:text-lg text-slate-600 mb-10 max-w-md font-medium leading-relaxed">
@@ -58,15 +69,21 @@ export default function Hero() {
                         {/* Stats */}
                         <div className="grid grid-cols-3 gap-8 border-t border-slate-300 pt-8 max-w-md">
                             <div>
-                                <p className="text-3xl font-black text-slate-900">500+</p>
+                                <p className="text-3xl font-black text-slate-900">
+                                    <CountUp end={500} suffix="+" />
+                                </p>
                                 <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Products</p>
                             </div>
                             <div>
-                                <p className="text-3xl font-black text-slate-900">10K+</p>
+                                <p className="text-3xl font-black text-slate-900">
+                                    <CountUp end={10} suffix="K+" decimals={0} />
+                                </p>
                                 <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Customers</p>
                             </div>
                             <div>
-                                <p className="text-3xl font-black text-slate-900">4.9</p>
+                                <p className="text-3xl font-black text-slate-900">
+                                    <CountUp end={4.9} decimals={1} />
+                                </p>
                                 <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Rating</p>
                             </div>
                         </div>

@@ -220,11 +220,23 @@ alter table notifications enable row level security;
 alter table reviews enable row level security;
 alter table review_reactions enable row level security;
 
+-- 3.1 SETUP COLUMN SECURITY FOR PROFILES
+-- Revoke generic select
+revoke select on profiles from public;
+revoke select on profiles from authenticated;
+revoke select on profiles from anon;
+-- Grant select only on safe columns
+grant select (id, full_name, avatar_url, role, created_at) on profiles to public;
+grant select (id, full_name, avatar_url, role, created_at) on profiles to authenticated;
+grant select (id, full_name, avatar_url, role, created_at) on profiles to anon;
+
 -- 4. RLS POLICIES (OPTIMIZED)
 -- Replaced `auth.uid()` with `(select auth.uid())` for better performance
 
 -- Profiles
-create policy "user read own profile" on profiles for select to authenticated using (id = (select auth.uid()));
+-- Allow public read access (so reviews can show names), but restrict columns via GRANTs below
+create policy "public read profiles" on profiles for select to public using (true);
+
 create policy "user update own profile" on profiles for update to authenticated using (id = (select auth.uid()));
 create policy "user can insert own profile" on profiles for insert to authenticated with check (id = (select auth.uid()));
 

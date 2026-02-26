@@ -31,8 +31,8 @@ export async function getProducts(filters?: ProductFilters): Promise<{ data: Pro
       .select(`
         *,
         category:categories(id, name),
-        variants:product_variants(*),
-        images:product_images(*)
+        variants:product_variants(id, color, size, price, stock),
+        images:product_images(id, image_url, color, is_main)
       `)
       .order('created_at', { ascending: false });
 
@@ -114,8 +114,8 @@ export async function getProduct(id: string, client: SupabaseClient = supabase):
     .select(`
       *,
       category:categories(id, name),
-      variants:product_variants(*),
-      images:product_images(*)
+      variants:product_variants(id, color, size, price, stock),
+      images:product_images(id, image_url, color, is_main)
     `)
     .eq('id', id)
     .single();
@@ -132,8 +132,8 @@ export async function getProductBySlug(slug: string, client: SupabaseClient = su
     .select(`
       *,
       category:categories(id, name),
-      variants:product_variants(*),
-      images:product_images(*)
+      variants:product_variants(id, color, size, price, stock),
+      images:product_images(id, image_url, color, is_main)
     `)
     .eq('slug', slug)
     .eq('status', 'active')

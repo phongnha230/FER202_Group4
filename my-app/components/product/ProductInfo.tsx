@@ -18,6 +18,7 @@ import {
     AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Badge } from '@/components/ui/badge';
+import { softFirework } from '@/lib/confetti';
 
 interface ProductInfoProps {
     product: UIProduct;
@@ -105,7 +106,6 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
             clearTimeout(timer);
             window.removeEventListener('cart-updated', handleCartUpdate);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
 
@@ -185,6 +185,7 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                     className="flex-1 h-12 text-base border-black hover:bg-black hover:text-white transition-colors"
                     size="lg"
                     onClick={async () => {
+                        softFirework();
                         const { user, isAuthenticated } = useUserStore.getState();
                         
                         // Debug logging
@@ -300,6 +301,8 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                             alert('Please wait for product data to load...');
                             return;
                         }
+
+                        softFirework();
 
                         console.log('Buy Now - variants:', variants);
                         console.log('Buy Now - selected:', { color: selectedColor, size: selectedSize });

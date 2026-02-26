@@ -43,7 +43,7 @@ export default function CartSuccessModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent showCloseButton={false} className="sm:max-w-[500px] p-0 gap-0 overflow-hidden bg-white">
+            <DialogContent showCloseButton={false} className="sm:max-w-[500px] p-0 gap-0 overflow-hidden bg-white animate-zoom-in">
                 <DialogHeader className="p-4 border-b border-gray-100 flex flex-row items-center justify-between">
                     <DialogTitle className="text-sm font-bold uppercase tracking-wide flex-1 text-center pr-6">
                         YOUR CART (HAS {cartCount} PRODUCTS)

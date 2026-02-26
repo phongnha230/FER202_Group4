@@ -32,6 +32,7 @@ interface ProductRow {
   slug: string | null;
   status: string;
   product_variants?: { price: number; size: string; color: string; stock: number }[];
+  product_images?: { image_url: string; is_main: boolean }[];
 }
 
 function extractBudget(text: string): number | null {
@@ -63,7 +64,8 @@ async function getProductContext(query: string, maxPrice?: number | null): Promi
     .from('products')
     .select(`
       id, name, description, base_price, sale_price, slug, status,
-      product_variants(price, size, color, stock)
+      product_variants(price, size, color, stock),
+      product_images(image_url, is_main)
     `)
     .eq('status', 'active');
 
@@ -84,7 +86,8 @@ async function getProductContext(query: string, maxPrice?: number | null): Promi
       .from('products')
       .select(`
         id, name, description, base_price, sale_price, slug, status,
-        product_variants(price, size, color, stock)
+        product_variants(price, size, color, stock),
+        product_images(image_url, is_main)
       `)
       .eq('status', 'active')
       .limit(20);
@@ -102,9 +105,19 @@ function formatProducts(products: ProductRow[]): string {
         .map((v) => `${v.size}/${v.color}: ${v.price}đ (còn ${v.stock})`)
         .join(', ');
       const url = p.slug ? `/product/${p.slug}` : `/product/${p.id}`;
-      return `- ${p.name}: ${price}đ (${variants || 'xem chi tiết'}) - ${url}`;
+      
+      let imageUrl = '';
+      if (p.product_images && p.product_images.length > 0) {
+        const mainImg = p.product_images.find(img => img.is_main) || p.product_images[0];
+        imageUrl = mainImg.image_url;
+      }
+      
+      return `- Tên sản phẩm: ${p.name}
+  + Giá: ${price}đ (${variants || 'xem chi tiết'})
+  + Ảnh: ${imageUrl ? `![Ảnh ${p.name}](${imageUrl})` : 'không có'}
+  + Link chi tiết: [${p.name}](${url})`;
     })
-    .join('\n');
+    .join('\n\n');
 }
 
 export async function POST(req: NextRequest) {
@@ -163,9 +176,14 @@ export async function POST(req: NextRequest) {
         parts: [{ text: m.message }],
       }));
 
-    const systemPrompt = `Bạn là trợ lý bán hàng của cửa hàng thời trang. Trả lời ngắn gọn, thân thiện, CHỈ dựa trên danh sách sản phẩm dưới đây. Không bịa thông tin.
-Nếu khách hỏi giá, gợi ý mua hàng, tìm sản phẩm theo ngân sách - hãy trích dẫn đúng tên, giá và link từ danh sách.
-Trả lời bằng tiếng Việt.`;
+    const systemPrompt = `Bạn là trợ lý tư vấn bán hàng của cửa hàng thời trang. Trả lời ngắn gọn, thân thiện bằng tiếng Việt.
+NGUYÊN TẮC BẮT BUỘC KHI TRẢ LỜI TƯ VẤN/PHỐI ĐỒ:
+1. CHỈ được nhắc đến và gợi ý những sản phẩm CÓ TRONG DANH SÁCH DỮ LIỆU BÊN DƯỚI. TUYỆT ĐỐI KHÔNG tự bịa ra sản phẩm bên ngoài. Tuyệt đối đừng tự chế "Cargo Utility Pants", "Denim Jacket"... nếu nó KHÔNG CÓ TRONG DANH SÁCH BÊN DƯỚI.
+2. BẤT CỨ KHI NÀO nhắc đến thẻ tên sản phẩm trong câu trả lời (dù là để báo giá, gợi ý, khen ngợi), BẮT BUỘC phải viết TÊN SẢN PHẨM Ở DẠNG LINK VÀ KÈM THEO ẢNH SẢN PHẨM. Nếu không có ảnh, cứ trả link sản phẩm.
+3. Cùng với điểm số 2, Dùng đúng chuẩn Markdown: 
+   Nếu có ảnh: ![Ảnh Sản Phẩm](link_ảnh) **[Tên Sản Phẩm Được In Đậm](link_sản_phẩm)**
+   Nếu không có ảnh: **[Tên Sản Phẩm Được In Đậm](link_sản_phẩm)**
+4. Nếu khách hỏi "sản phẩm XYZ có không", và nó K CÓ TRONG DANH SÁCH DỮ LIỆU, thì hãy nói KHÔNG có và gợi ý món KHÁC CÓ TRONG DANH SÁCH DỮ LIỆU.`;
 
     const userPrompt = `[DỮ LIỆU SẢN PHẨM HIỆN CÓ]
 ${productContext}

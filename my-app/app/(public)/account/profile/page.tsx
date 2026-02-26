@@ -69,19 +69,41 @@ export default function ProfilePage() {
         }
         
         setUser(session.user);
-        setFullName(session.user.user_metadata.full_name || '');
+        
+        // Try to get data from metadata first
+        let { full_name, phone, street, city, country } = session.user.user_metadata;
+        
+        // If missing key info, fetch from profiles
+        if (!phone || !street || !city) {
+             const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
+            
+            if (profile) {
+                full_name = full_name || profile.full_name;
+                phone = phone || profile.phone;
+                street = street || profile.street;
+                city = city || profile.city;
+                country = country || profile.country;
+            }
+        }
+
+        setFullName(full_name || '');
         setEmail(session.user.email || '');
-        setPhone(session.user.user_metadata.phone || '');
-        setStreet(session.user.user_metadata.street || '');
-        setCity(session.user.user_metadata.city || '');
-        setCountry(session.user.user_metadata.country || 'Vietnam');
+        setPhone(phone || '');
+        setStreet(street || '');
+        setCity(city || '');
+        setCountry(country || 'Vietnam');
         setLoading(false);
     };
 
     const handleSave = async () => {
         setSaving(true);
         try {
-            const { error } = await supabase.auth.updateUser({
+            // 1. Update Auth Metadata (for session)
+            const { error: authError } = await supabase.auth.updateUser({
                 data: { 
                     full_name: fullName,
                     phone: phone,
@@ -90,13 +112,31 @@ export default function ProfilePage() {
                     country: country
                 }
             });
+            if (authError) throw authError;
 
-            if (error) throw error;
+            // 2. Update Profiles Table (persistent data)
+            // Use upsert to create profile if it doesn't exist
+            if (user) {
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .upsert({
+                        id: user.id,
+                        full_name: fullName,
+                        phone: phone,
+                        street: street,
+                        city: city,
+                        country: country,
+                        updated_at: new Date().toISOString()
+                    });
+
+                if (profileError) throw profileError;
+            }
 
             showNotification('Profile updated successfully!', 'success');
             setEditing(false);
             checkUser();
         } catch (error) {
+            console.error(error);
             showNotification(error instanceof Error ? error.message : 'Failed to update profile', 'error');
         } finally {
             setSaving(false);
@@ -140,14 +180,14 @@ export default function ProfilePage() {
             // Create unique file name
             const fileExt = avatarFile.name.split('.').pop();
             const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-            const filePath = `avatars/${fileName}`;
+            const filePath = `${fileName}`; // Directly in root of bucket or use folder if policy allows
 
             // Upload to Supabase Storage
             const { error: uploadError } = await supabase.storage
                 .from('avatars')
                 .upload(filePath, avatarFile, {
                     cacheControl: '3600',
-                    upsert: false
+                    upsert: true
                 });
 
             if (uploadError) throw uploadError;
@@ -157,18 +197,29 @@ export default function ProfilePage() {
                 .from('avatars')
                 .getPublicUrl(filePath);
 
-            // Update user metadata
-            const { error: updateError } = await supabase.auth.updateUser({
+            // 1. Update user metadata
+            const { error: updateAuthError } = await supabase.auth.updateUser({
                 data: { avatar_url: publicUrl }
             });
+            if (updateAuthError) throw updateAuthError;
 
-            if (updateError) throw updateError;
+            // 2. Update profiles table
+            const { error: updateProfileError } = await supabase
+                .from('profiles')
+                .upsert({ 
+                    id: user.id,
+                    avatar_url: publicUrl,
+                    updated_at: new Date().toISOString()
+                });
+
+            if (updateProfileError) throw updateProfileError;
 
             showNotification('Avatar updated successfully!', 'success');
             setAvatarFile(null);
             setAvatarPreview(null);
             checkUser(); // Refresh user data
         } catch (error) {
+            console.error(error);
             showNotification(error instanceof Error ? error.message : 'Failed to upload avatar', 'error');
         } finally {
             setUploadingAvatar(false);

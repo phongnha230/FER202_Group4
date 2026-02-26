@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createNotification } from '@/services/notification.service';
 import { createShippingLog } from '@/services/shipping-log.service';
+import { sendOrderEmail } from '@/lib/notifications/send-order-email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -143,6 +144,13 @@ export async function POST(request: NextRequest) {
     const notif = notificationMessages[newStatus];
     if (notif && order.user_id) {
       await createNotification(order.user_id, notif.title, notif.message, 'success');
+    }
+
+    // Send delivery confirmation email (non-blocking)
+    if (newStatus === 'delivered') {
+      sendOrderEmail(orderId, 'order_delivered').catch((err) =>
+        console.error('Failed to send delivery email (non-blocking):', err)
+      );
     }
 
     return NextResponse.json({ success: true });

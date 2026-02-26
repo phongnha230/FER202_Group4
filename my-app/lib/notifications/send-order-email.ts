@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { sendOrderPlacedEmail, sendOrderSuccessEmail, OrderEmailData } from '@/services/email.service';
+import { sendOrderPlacedEmail, sendOrderSuccessEmail, sendOrderDeliveredEmail, OrderEmailData } from '@/services/email.service';
 
-export type OrderEmailType = 'order_placed' | 'order_success';
+export type OrderEmailType = 'order_placed' | 'order_success' | 'order_delivered';
 
 export async function sendOrderEmail(
   orderId: string,
@@ -47,9 +47,10 @@ export async function sendOrderEmail(
     authUser.user.user_metadata?.name ||
     customerEmail.split('@')[0];
 
-  const shipping = (
-    order.shipping as Array<{ receiver_name: string; receiver_phone: string; receiver_address: string }>
-  )?.[0];
+  const rawShipping = order.shipping;
+  // Supabase might return an object for 1:1 relation or array
+  const shipping = Array.isArray(rawShipping) ? rawShipping[0] : rawShipping;
+  
   const receiverName = shipping?.receiver_name || customerName;
   const receiverPhone = shipping?.receiver_phone || '';
   const receiverAddress = shipping?.receiver_address || '';
@@ -81,6 +82,9 @@ export async function sendOrderEmail(
 
   if (type === 'order_placed') {
     return sendOrderPlacedEmail(emailData);
+  }
+  if (type === 'order_delivered') {
+    return sendOrderDeliveredEmail(emailData);
   }
   return sendOrderSuccessEmail(emailData);
 }

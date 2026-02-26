@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import { MessageCircle, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -146,10 +147,29 @@ export default function ChatWidget() {
                       "max-w-[85%] rounded-lg px-3 py-2 text-sm",
                       m.role === "user"
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
+                        : "bg-muted overflow-hidden"
                     )}
                   >
-                    <p className="whitespace-pre-wrap">{m.text}</p>
+                    {m.role === "user" ? (
+                      <p className="whitespace-pre-wrap">{m.text}</p>
+                    ) : (
+                      <ReactMarkdown
+                        components={{
+                          a: ({ node: _, ...props }) => (
+                            <a {...props} className="text-primary hover:underline font-medium break-all" target="_blank" rel="noopener noreferrer" />
+                          ),
+                          img: ({ node: _, ...props }) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img {...props} className="rounded-md border my-2 max-w-[200px] h-auto object-cover" alt={props.alt || "Product"} />
+                          ),
+                          p: ({ node: _, ...props }) => (
+                            <p {...props} className="whitespace-pre-wrap mb-2 last:mb-0" />
+                          )
+                        }}
+                      >
+                        {m.text}
+                      </ReactMarkdown>
+                    )}
                   </div>
                 </div>
               ))}

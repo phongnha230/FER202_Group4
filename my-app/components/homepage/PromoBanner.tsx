@@ -1,6 +1,10 @@
+'use client';
+
+import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
+import BlurText from '@/components/ui/BlurText';
 
 interface PromoBannerProps {
     collectionNumber?: string;
@@ -13,6 +17,7 @@ interface PromoBannerProps {
     imagePosition?: 'left' | 'right';
     theme?: 'dark-teal' | 'light' | 'dark';
     backgroundColor?: string;
+    imageEntrance?: 'left' | 'right' | 'none';
 }
 
 export default function PromoBanner({
@@ -26,6 +31,7 @@ export default function PromoBanner({
     imagePosition = 'right',
     theme = 'dark-teal',
     backgroundColor,
+    imageEntrance = 'none',
 }: PromoBannerProps) {
     const isImageRight = imagePosition === 'right';
 
@@ -53,13 +59,30 @@ export default function PromoBanner({
 
     const styles = themeStyles[theme];
 
+    // Animation variants
+    const imageVariants = {
+        hidden: { 
+            opacity: 0, 
+            x: imageEntrance === 'left' ? -100 : imageEntrance === 'right' ? 100 : 0 
+        },
+        visible: { 
+            opacity: 1, 
+            x: 0,
+            transition: {
+                duration: 0.8,
+                ease: [0.25, 0.4, 0.25, 1] as const,
+                delay: 0.2
+            }
+        }
+    };
+
     return (
-        <section className="relative">
+        <section className="relative overflow-hidden">
             <div className={`grid grid-cols-1 lg:grid-cols-2 min-h-[500px] md:min-h-[600px]`}>
                 {/* Content Side */}
                 <div
                     className={`${backgroundColor || styles.bg} ${isImageRight ? 'order-1' : 'order-2 lg:order-2'} 
-            flex items-center justify-center p-8 md:p-12 lg:p-16`}
+            flex items-center justify-center p-8 md:p-12 lg:p-16 relative z-10`}
                 >
                     <div className="max-w-md">
                         {/* Collection Label */}
@@ -69,16 +92,16 @@ export default function PromoBanner({
                             </p>
                         )}
 
-                        {/* Title */}
-                        <h2 className={`text-4xl md:text-5xl lg:text-6xl font-bold ${styles.text} leading-tight mb-6`}>
-                            {title}
-                            {subtitle && (
-                                <>
-                                    <br />
-                                    {subtitle}
-                                </>
-                            )}
-                        </h2>
+                        {/* Animated Title with BlurText */}
+                        <div className="mb-6">
+                            <BlurText
+                                text={subtitle ? `${title} ${subtitle}` : title}
+                                delay={100}
+                                animateBy="words"
+                                direction="top"
+                                className={`text-4xl md:text-5xl lg:text-6xl font-bold ${styles.text} leading-tight`}
+                            />
+                        </div>
 
                         {/* Description */}
                         <p className={`text-sm md:text-base ${styles.subtext} leading-relaxed mb-8 max-w-sm`}>
@@ -98,7 +121,13 @@ export default function PromoBanner({
                 </div>
 
                 {/* Image Side */}
-                <div className={`relative ${isImageRight ? 'order-2' : 'order-1 lg:order-1'} min-h-[400px] lg:min-h-full`}>
+                <motion.div 
+                    className={`relative ${isImageRight ? 'order-2' : 'order-1 lg:order-1'} min-h-[400px] lg:min-h-full`}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: false, amount: 0.3 }}
+                    variants={imageEntrance !== 'none' ? imageVariants : undefined}
+                >
                     <Image
                         src={image}
                         alt={title}
@@ -106,7 +135,7 @@ export default function PromoBanner({
                         sizes="(max-width: 1024px) 100vw, 50vw"
                         className="object-cover object-center"
                     />
-                </div>
+                </motion.div>
             </div>
         </section>
     );

@@ -1,6 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import BlurText from '@/components/ui/BlurText';
+import ClickSpark from '@/components/ui/ClickSpark';
 
 export default function StyleInspiration() {
     return (
@@ -23,23 +25,43 @@ export default function StyleInspiration() {
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0d1b2a] via-[#0d1b2a]/60 to-transparent" />
 
                     {/* Content Overlay - Centered */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 z-10">
                         {/* Main Heading */}
-                        <h2 className="text-4xl md:text-6xl lg:text-8xl font-extrabold text-white tracking-tight mb-6 md:mb-8 text-center drop-shadow-lg">
-                            <span className="italic font-bold">STYLE</span>{' '}
-                            <span className="font-extrabold">INSPIRATION</span>
-                        </h2>
+                        <div className="flex flex-wrap justify-center gap-x-3 md:gap-x-5 mb-6 md:mb-8 text-4xl md:text-6xl lg:text-8xl font-extrabold text-white tracking-tight drop-shadow-lg">
+                            <BlurText 
+                                text="STYLE" 
+                                className="italic font-bold" 
+                                delay={100} 
+                                animateBy="letters" 
+                            />
+                            <BlurText 
+                                text="INSPIRATION" 
+                                className="font-extrabold" 
+                                delay={300} 
+                                animateBy="letters" 
+                            />
+                        </div>
 
                         {/* CTA Button */}
-                        <Button
-                            asChild
-                            size="lg"
-                            className="bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold px-8 py-3 rounded uppercase tracking-wider"
-                        >
-                            <Link href="/lookbook">
-                                GET THE LOOK
-                            </Link>
-                        </Button>
+                        <div className="relative overflow-hidden rounded">
+                            <ClickSpark
+                                sparkColor="#22d3ee" // Cyan-400 to match button
+                                sparkSize={12}
+                                sparkRadius={25}
+                                sparkCount={12}
+                                duration={500}
+                            >
+                                <Button
+                                    asChild
+                                    size="lg"
+                                    className="bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold px-8 py-3 rounded uppercase tracking-wider relative z-10"
+                                >
+                                    <Link href="/lookbook">
+                                        GET THE LOOK
+                                    </Link>
+                                </Button>
+                            </ClickSpark>
+                        </div>
                     </div>
 
                     {/* Floating Badge on Right */}

@@ -21,8 +21,9 @@ export default function HomePage() {
         image="/banners/concrete-jungle.jpg"
         ctaText="VIEW COLLECTION"
         ctaLink="/streetwear"
-        imagePosition="right"
+        imagePosition="left"
         theme="dark-teal"
+        imageEntrance="left"
       />
 
       {/* Neon Nights Banner */}
@@ -34,8 +35,9 @@ export default function HomePage() {
         image="/banners/neon-nights.jpg"
         ctaText="VIEW COLLECTION"
         ctaLink="/new-arrivals"
-        imagePosition="left"
+        imagePosition="right"
         theme="light"
+        imageEntrance="right"
       />
 
       {/* Style Inspiration */}

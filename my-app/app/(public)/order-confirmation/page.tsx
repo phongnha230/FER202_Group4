@@ -11,6 +11,7 @@ import { OrderWithDetails } from '@/types/order.type';
 import { getColorFilter } from '@/lib/utils';
 import { useCart } from '@/hooks/useCart';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { doubleFirework } from '@/lib/confetti';
 
 function OrderConfirmationContent() {
     const searchParams = useSearchParams();
@@ -20,6 +21,10 @@ function OrderConfirmationContent() {
     const [order, setOrder] = useState<OrderWithDetails | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        doubleFirework();
+    }, []);
 
     useEffect(() => {
         let isMounted = true;

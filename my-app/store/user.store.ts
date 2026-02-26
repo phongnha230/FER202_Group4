@@ -24,8 +24,15 @@ export const useUserStore = create<UserState>((set) => ({
         let profile = initialProfile;
 
         // If profile missing, try to create it or just use session data
+        // If profile missing, try to create it or just use session data
         if (!profile || error) {
-             console.warn("Profile missing. Attempting to create or use fallback.");
+             console.warn("Profile missing or error fetching. Attempting to create or use fallback.", error);
+             
+             // First check: did we fail due to permissions?
+             if (error?.code === '42501') {
+                 console.error("Permission denied fetching profile. Check RLS policies and table grants.");
+             }
+
              // Attempt lazy create
              const newProfile = {
                  id: session.user.id,
@@ -38,17 +45,33 @@ export const useUserStore = create<UserState>((set) => ({
              if (!insertError) {
                  profile = newProfile;
              } else {
-                 console.error("Failed to create profile lazy:", insertError);
-                 // Fallback to minimal user object
-                 profile = {
-                     id: session.user.id,
-                     full_name: session.user.user_metadata.full_name,
-                     role: 'customer',
-                     avatar_url: session.user.user_metadata.avatar_url,
-                     created_at: new Date().toISOString(),
-                     phone: null,
-                     address: null
-                 };
+                 // Check if it's a duplicate key error (profile already created by trigger or race condition)
+                 if (insertError.code === '23505') {
+                     // Try fetching again, explicitly ensuring we can read it
+                     const { data: existingProfile, error: retryError } = await supabase
+                        .from('profiles')
+                        .select('id, full_name, role, avatar_url, created_at') // Select specific columns to avoid permission issues with others
+                        .eq('id', session.user.id)
+                        .single();
+                     
+                     if (existingProfile) {
+                         profile = existingProfile;
+                     } else {
+                        console.error("Retry fetch failed:", retryError);
+                     }
+                 } else {
+                     console.error("Failed to create profile lazy:", JSON.stringify(insertError, null, 2));
+                     // Fallback to minimal user object using session data
+                     profile = {
+                         id: session.user.id,
+                         full_name: session.user.user_metadata.full_name,
+                         role: 'customer',
+                         avatar_url: session.user.user_metadata.avatar_url,
+                         created_at: new Date().toISOString(),
+                         phone: null, 
+                         address: null
+                     };
+                 }
              }
         }
 

@@ -144,7 +144,7 @@ export default function MyOrdersPage() {
                      } : undefined;
 
                      mappedOrders.push({
-                         id: dbOrder.id, // Keeping order ID for review link
+                         id: `${dbOrder.id}-${productId}`, // Create unique ID for UI key
                          orderNumber: dbOrder.id.substring(0, 8).toUpperCase(), 
                          date: dbOrder.created_at,
                          status: uiStatus,
@@ -251,8 +251,15 @@ export default function MyOrdersPage() {
     const handleCancelOrder = async () => {
         if (!selectedOrder || !user) return;
         
+        // Extract original order ID from composite key (format: orderId-productId)
+        // If it doesn't contain a hyphen (legacy), use it as is.
+        const originalOrderId = selectedOrder.id.includes('-') 
+            ? selectedOrder.id.split('-')[0] 
+            : selectedOrder.id;
+
         console.log('Cancelling order:', {
-            orderId: selectedOrder.id,
+            compositeId: selectedOrder.id,
+            originalId: originalOrderId,
             userId: user.id,
             dbStatus: selectedOrder.dbStatus,
             uiStatus: selectedOrder.status
@@ -261,7 +268,7 @@ export default function MyOrdersPage() {
         setCancellingOrder(true);
         try {
             const { cancelOrder } = await import('@/services/order.service');
-            const { error } = await cancelOrder(selectedOrder.id, user.id);
+            const { error } = await cancelOrder(originalOrderId, user.id);
             
             if (error) {
                 console.error('Cancel order error details:', error);
@@ -272,9 +279,10 @@ export default function MyOrdersPage() {
                 return;
             }
 
-            // Update local state
+            // Update local state - Need to update ALL items belonging to this order
             setOrders(prev => prev.map(order => 
-                order.id === selectedOrder.id 
+                // Check if this item belongs to the cancelled order (matches original ID prefix)
+                order.id.startsWith(originalOrderId)
                     ? { ...order, status: 'returned' as OrderStatus, dbStatus: 'cancelled' }
                     : order
             ));
@@ -538,7 +546,7 @@ export default function MyOrdersPage() {
                                 <div className="flex items-center gap-2">
                                     {order.status === 'delivered' && !order.hasReview && (
                                         <Button variant="outline" className="h-10 px-4 rounded-sm text-xs font-bold text-red-500 border-red-500 hover:bg-red-50 hover:text-red-600" asChild>
-                                            <Link href={`/write-review/${order.id}`}>
+                                            <Link href={`/write-review/${order.id.split('-')[0]}`}>
                                                 <PenLine className="w-3.5 h-3.5 mr-2" />
                                                 WRITE A REVIEW
                                             </Link>

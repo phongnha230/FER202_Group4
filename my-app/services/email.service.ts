@@ -182,3 +182,90 @@ export async function sendOrderSuccessEmail(data: OrderEmailData): Promise<{ suc
     return { success: false, error: (err as Error).message };
   }
 }
+
+function buildOrderDeliveredHtml(data: OrderEmailData): string {
+  const itemsHtml = data.orderItems
+    .map(
+      (item) => `
+    <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.productName} (${item.variantInfo})</td>
+      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.price.toFixed(2)}</td>
+    </tr>
+  `
+    )
+    .join('');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0;">
+    <div style="font-size: 48px; margin-bottom: 8px;">✅</div>
+    <h1 style="margin: 0; font-size: 24px;">Đơn hàng đã giao thành công!</h1>
+    <p style="margin: 8px 0 0 0; opacity: 0.9;">Mã đơn hàng: <strong>${data.orderId.slice(0, 8).toUpperCase()}</strong></p>
+  </div>
+  <div style="background: #f9f9f9; padding: 24px; border: 1px solid #eee; border-top: none; border-radius: 0 0 8px 8px;">
+    <p>Xin chào <strong>${data.customerName}</strong>,</p>
+    <p>Tuyệt vời! Đơn hàng của bạn đã được giao đến địa chỉ nhận hàng thành công. Chúng tôi hy vọng bạn hài lòng với sản phẩm! 🎉</p>
+
+    <h3 style="margin-top: 24px;">Chi tiết đơn hàng</h3>
+    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+      <thead>
+        <tr style="background: #f0f0f0;">
+          <th style="padding: 12px; text-align: left;">Sản phẩm</th>
+          <th style="padding: 12px; text-align: center;">SL</th>
+          <th style="padding: 12px; text-align: right;">Giá</th>
+        </tr>
+      </thead>
+      <tbody>${itemsHtml}</tbody>
+    </table>
+
+    <p style="margin-top: 16px; font-size: 18px; font-weight: bold;">Tổng cộng: $${data.totalPrice.toFixed(2)}</p>
+
+    <h3 style="margin-top: 24px;">Địa chỉ giao hàng</h3>
+    <p><strong>${data.receiverName}</strong><br>${data.receiverPhone}<br>${data.receiverAddress}</p>
+
+    <div style="margin-top: 24px; padding: 16px; background: #ecfdf5; border-left: 4px solid #16a34a; border-radius: 4px;">
+      <p style="margin: 0; color: #15803d; font-weight: bold;">Bạn có hài lòng với đơn hàng không?</p>
+      <p style="margin: 8px 0 0 0; color: #166534; font-size: 14px;">Hãy để lại đánh giá để giúp chúng tôi cải thiện dịch vụ tốt hơn nhé!</p>
+    </div>
+
+    <p style="margin-top: 24px; color: #666; font-size: 14px;">
+      Cảm ơn bạn đã tin tưởng và mua sắm tại Shop chúng tôi. Hẹn gặp lại! 👋
+    </p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+export async function sendOrderDeliveredEmail(data: OrderEmailData): Promise<{ success: boolean; error?: string }> {
+  const resend = getResendClient();
+  if (!resend) {
+    console.warn('RESEND_API_KEY not set, skipping order delivered email');
+    return { success: true };
+  }
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: data.customerEmail,
+      subject: `[Shop] Đơn hàng #${data.orderId.slice(0, 8).toUpperCase()} đã giao thành công! 🎉`,
+      html: buildOrderDeliveredHtml(data),
+    });
+
+    if (error) {
+      console.error('Failed to send order delivered email:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Order delivered email error:', err);
+    return { success: false, error: (err as Error).message };
+  }
+}

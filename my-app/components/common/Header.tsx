@@ -43,11 +43,8 @@ export default function Header() {
         }
       }
       
-      // Fallback to localStorage for unauthenticated users
-      const cart = localStorage.getItem('urban_nest_cart');
-      const items: { quantity: number }[] = cart ? JSON.parse(cart) : [];
-      const total = items.reduce((sum, item) => sum + item.quantity, 0);
-      setCartCount(total);
+      // If not authenticated, show 0
+      setCartCount(0);
     };
 
     // Initial checks
@@ -139,13 +136,14 @@ export default function Header() {
                 key={link.href}
                 href={link.href}
                 className={clsx(
-                  'text-sm font-medium transition-colors',
+                  'text-sm font-medium transition-colors relative group',
                   pathname === link.href
                     ? 'text-blue-500'
                     : 'text-gray-700 hover:text-black'
                 )}
               >
                 {link.label}
+                <span className="absolute left-0 -bottom-1 w-0 h-0.5 bg-red-500 transition-all duration-300 group-hover:w-full"></span>
               </Link>
             ))}
           </nav>
@@ -252,7 +250,7 @@ export default function Header() {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t animate-fade-in-down">
+          <div className="md:hidden py-4 border-t animate-dropdown">
             <nav className="flex flex-col space-y-4">
               {navLinks.map((link) => (
                 <Link
