@@ -58,10 +58,10 @@ export async function updateSession(request: NextRequest) {
 
     // If logged in with Supabase, check role
     if (user) {
-        // First check user metadata (faster, no DB query)
-        let role = user.user_metadata?.role;
+        // Prefer token claims first to avoid an extra DB query on every admin route.
+        let role = user.app_metadata?.role || user.user_metadata?.role;
         
-        // If no role in metadata, fetch from profiles table
+        // Fallback to profiles when claim is not present.
         if (!role) {
             const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
             role = profile?.role;

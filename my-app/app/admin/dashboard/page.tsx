@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowUpRight, ArrowDownRight, DollarSign, ShoppingBag, Users, Package, Loader2 } from "lucide-react";
+import { DollarSign, ShoppingBag, Users, Package, Loader2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,29 @@ interface LowStockProduct {
     variant_count: number;
 }
 
+interface RecentOrderProfile {
+    full_name: string | null;
+}
+
+interface RecentOrderRow {
+    id: string;
+    total_price: number;
+    order_status: string;
+    created_at: string;
+    profiles: RecentOrderProfile | RecentOrderProfile[] | null;
+}
+
+interface ProductVariantRow {
+    stock: number | null;
+}
+
+interface ProductWithVariantsRow {
+    id: string;
+    name: string;
+    image: string | null;
+    product_variants: ProductVariantRow[] | null;
+}
+
 export default function DashboardPage() {
     const [stats, setStats] = useState<DashboardStats>({
         totalSales: 0,
@@ -45,73 +68,59 @@ export default function DashboardPage() {
     const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
     const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
     const [loading, setLoading] = useState(true);
+    const [lowStockLoading, setLowStockLoading] = useState(true);
 
     useEffect(() => {
         async function loadDashboardData() {
             try {
                 setLoading(true);
+                const [ordersCountRes, paidOrdersRes, customersRes, productsRes, recentOrdersRes] = await Promise.all([
+                    supabase.from('orders').select('id', { count: 'exact', head: true }),
+                    supabase.from('orders').select('total_price').in('order_status', ['completed', 'delivered', 'paid']),
+                    supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer'),
+                    supabase.from('products').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+                    supabase
+                        .from('orders')
+                        .select(`
+                            id,
+                            total_price,
+                            order_status,
+                            created_at,
+                            profiles:user_id (
+                                full_name
+                            )
+                        `)
+                        .order('created_at', { ascending: false })
+                        .limit(5),
+                ]);
 
-                // Fetch total orders and sales
-                const { data: ordersData } = await supabase
-                    .from('orders')
-                    .select('id, total_price, order_status');
-                
-                const totalOrders = ordersData?.length || 0;
-                const totalSales = ordersData?.reduce((sum, order) => {
-                    // Only count completed/delivered orders
-                    if (['completed', 'delivered', 'paid'].includes(order.order_status)) {
-                        return sum + (order.total_price || 0);
-                    }
-                    return sum;
-                }, 0) || 0;
-
-                // Fetch total customers
-                const { count: customersCount } = await supabase
-                    .from('profiles')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('role', 'customer');
-
-                // Fetch total products
-                const { count: productsCount } = await supabase
-                    .from('products')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('status', 'active');
+                const totalSales = (paidOrdersRes.data || []).reduce((sum, order) => sum + (order.total_price || 0), 0);
 
                 setStats({
                     totalSales,
-                    totalOrders,
-                    totalCustomers: customersCount || 0,
-                    totalProducts: productsCount || 0,
+                    totalOrders: ordersCountRes.count || 0,
+                    totalCustomers: customersRes.count || 0,
+                    totalProducts: productsRes.count || 0,
                 });
 
-                // Fetch recent orders with customer info
-                const { data: recentOrdersData } = await supabase
-                    .from('orders')
-                    .select(`
-                        id,
-                        total_price,
-                        order_status,
-                        created_at,
-                        profiles:user_id (
-                            full_name
-                        )
-                    `)
-                    .order('created_at', { ascending: false })
-                    .limit(5);
+                if (recentOrdersRes.data) {
+                    const rows = recentOrdersRes.data as RecentOrderRow[];
 
-                if (recentOrdersData) {
-                    setRecentOrders(recentOrdersData.map(order => ({
+                    setRecentOrders(rows.map(order => {
+                        const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
+                        return ({
                         id: order.id,
-                        customer_name: (order.profiles as any)?.full_name || 'Unknown Customer',
+                        customer_name: profile?.full_name || 'Unknown Customer',
                         customer_email: '',
                         status: order.order_status,
                         total: order.total_price,
                         created_at: order.created_at,
-                    })));
+                    })}));
                 }
 
-                // Fetch low stock products (products with variants that have stock < 20)
-                const { data: productsWithVariants } = await supabase
+                // Load low-stock data in background so the dashboard renders sooner.
+                setLowStockLoading(true);
+                supabase
                     .from('products')
                     .select(`
                         id,
@@ -121,27 +130,39 @@ export default function DashboardPage() {
                             stock
                         )
                     `)
-                    .eq('status', 'active');
+                    .eq('status', 'active')
+                    .then(({ data: productsWithVariants }) => {
+                        if (!productsWithVariants) {
+                            setLowStockProducts([]);
+                            return;
+                        }
 
-                if (productsWithVariants) {
-                    const lowStock = productsWithVariants
-                        .map(product => {
-                            const variants = product.product_variants || [];
-                            const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
-                            return {
-                                id: product.id,
-                                name: product.name,
-                                image: product.image,
-                                total_stock: totalStock,
-                                variant_count: variants.length,
-                            };
-                        })
-                        .filter(p => p.total_stock < 50 && p.total_stock > 0)
-                        .sort((a, b) => a.total_stock - b.total_stock)
-                        .slice(0, 4);
-                    
-                    setLowStockProducts(lowStock);
-                }
+                        const rows = productsWithVariants as ProductWithVariantsRow[];
+
+                        const lowStock = rows
+                            .map(product => {
+                                const variants = product.product_variants || [];
+                                const totalStock = variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+                                return {
+                                    id: product.id,
+                                    name: product.name,
+                                    image: product.image,
+                                    total_stock: totalStock,
+                                    variant_count: variants.length,
+                                };
+                            })
+                            .filter(p => p.total_stock < 50 && p.total_stock > 0)
+                            .sort((a, b) => a.total_stock - b.total_stock)
+                            .slice(0, 4);
+
+                        setLowStockProducts(lowStock);
+                    })
+                    .catch((error) => {
+                        console.error('Error loading low stock data:', error);
+                    })
+                    .finally(() => {
+                        setLowStockLoading(false);
+                    });
 
             } catch (error) {
                 console.error('Error loading dashboard data:', error);
@@ -300,7 +321,9 @@ export default function DashboardPage() {
                         </Badge>
                     </CardHeader>
                     <CardContent className="grid gap-6">
-                        {lowStockProducts.length > 0 ? (
+                        {lowStockLoading ? (
+                            <p className="text-sm text-slate-500 text-center py-4">Loading stock alerts...</p>
+                        ) : lowStockProducts.length > 0 ? (
                             lowStockProducts.map((item) => (
                                 <div key={item.id} className="flex items-start gap-3">
                                     <div className="h-12 w-12 rounded bg-slate-100 flex items-center justify-center overflow-hidden relative">

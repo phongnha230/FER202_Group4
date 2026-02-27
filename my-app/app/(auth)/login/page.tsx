@@ -58,7 +58,6 @@ export default function LoginPage() {
                 }
 
                 showToast('Successfully logged in!', 'success');
-                router.refresh();
                 
                 if (role === 'admin') {
                     router.push('/admin/dashboard');
