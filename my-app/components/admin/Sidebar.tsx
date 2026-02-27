@@ -7,7 +7,6 @@ import {
     Package,
     ShoppingCart,
     Users,
-    Settings,
     LogOut,
     Layers
 } from "lucide-react";
@@ -39,11 +38,6 @@ const sidebarItems = [
         title: "Customers",
         href: "/admin/customers",
         icon: Users,
-    },
-    {
-        title: "Settings",
-        href: "/admin/settings",
-        icon: Settings,
     },
 ];
 

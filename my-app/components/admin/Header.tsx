@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search, User, LogOut, Settings } from "lucide-react";
+import { Bell, Search, User, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,12 +54,6 @@ export function Header() {
                             <Link href="/account/profile" className="cursor-pointer">
                                 <User className="mr-2 h-4 w-4" />
                                 Profile
-                            </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                            <Link href="/admin/settings" className="cursor-pointer">
-                                <Settings className="mr-2 h-4 w-4" />
-                                Settings
                             </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
