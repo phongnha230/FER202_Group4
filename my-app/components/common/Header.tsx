@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import { supabase } from '@/lib/supabase/client';
 import { useState, useEffect } from "react";
@@ -24,52 +24,59 @@ export default function Header() {
   const [cartCount, setCartCount] = useState(0);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const pathname = usePathname();
-  const router = useRouter();
 
-  // Listen for cart updates and Auth state
+  // Auth bootstrap + auth subscription
   useEffect(() => {
-    const updateCount = async () => {
-      // If user is authenticated, fetch from Supabase
-      if (user?.id) {
-        try {
-          const { getCartSummary } = await import('@/services/cart.service');
-          const { data, error } = await getCartSummary(user.id);
-          if (!error && data) {
-            setCartCount(data.total_items);
-            return;
-          }
-        } catch (err) {
-          console.error('Failed to fetch cart count:', err);
-        }
-      }
-      
-      // If not authenticated, show 0
-      setCartCount(0);
-    };
+    let mounted = true;
 
-    // Initial checks
-    updateCount();
-    
-    // Check current user
     const checkUser = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (mounted) {
         setUser(session?.user || null);
+      }
     };
     checkUser();
 
-    // Listeners
-    window.addEventListener('cart-updated', updateCount);
-    window.addEventListener('storage', updateCount);
-
-    // Auth Listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-        setUser(session?.user || null);
-        // Update cart count when auth state changes
-        await updateCount();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
     });
 
-    // Subscribe to cart changes in Supabase for authenticated users
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Cart count + realtime cart subscription
+  useEffect(() => {
+    let mounted = true;
     let cartSubscription: RealtimeChannel | null = null;
+
+    const updateCount = async () => {
+      if (!user?.id) {
+        if (mounted) {
+          setCartCount(0);
+        }
+        return;
+      }
+
+      try {
+        const { getCartSummary } = await import('@/services/cart.service');
+        const { data, error } = await getCartSummary(user.id);
+        if (mounted) {
+          setCartCount(!error && data ? data.total_items : 0);
+        }
+      } catch (err) {
+        console.error('Failed to fetch cart count:', err);
+        if (mounted) {
+          setCartCount(0);
+        }
+      }
+    };
+
+    updateCount();
+    window.addEventListener('cart-updated', updateCount);
+
     const setupCartSubscription = async () => {
       if (user?.id) {
         try {
@@ -92,13 +99,11 @@ export default function Header() {
         }
       }
     };
-    
     setupCartSubscription();
 
     return () => {
+      mounted = false;
       window.removeEventListener('cart-updated', updateCount);
-      window.removeEventListener('storage', updateCount);
-      subscription.unsubscribe();
       if (cartSubscription) {
         cartSubscription.unsubscribe();
       }

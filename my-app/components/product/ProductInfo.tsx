@@ -379,6 +379,35 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                                 <li>Heavyweight 400gsm cotton</li>
                                 <li>Pre-shrunk to minimize shrinkage</li>
                             </ul>
+                            <div className="mt-4 overflow-x-auto">
+                                <table className="min-w-full border border-gray-300 text-sm text-gray-900">
+                                    <thead>
+                                        <tr className="bg-gray-100">
+                                            <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Size</th>
+                                            <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Size S</th>
+                                            <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Size M</th>
+                                            <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Size L</th>
+                                            <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Size XL</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td className="border border-gray-300 px-3 py-2 font-semibold">Chiều Cao</td>
+                                            <td className="border border-gray-300 px-3 py-2">Dưới 1m65</td>
+                                            <td className="border border-gray-300 px-3 py-2">1m65 - 1m7</td>
+                                            <td className="border border-gray-300 px-3 py-2">1m7 - 1m75</td>
+                                            <td className="border border-gray-300 px-3 py-2">1m75 - 1m85</td>
+                                        </tr>
+                                        <tr>
+                                            <td className="border border-gray-300 px-3 py-2 font-semibold">Cân Nặng</td>
+                                            <td className="border border-gray-300 px-3 py-2">Dưới 50kg</td>
+                                            <td className="border border-gray-300 px-3 py-2">50kg - 60kg</td>
+                                            <td className="border border-gray-300 px-3 py-2">60kg - 70kg</td>
+                                            <td className="border border-gray-300 px-3 py-2">65kg - 80kg</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </AccordionContent>
                 </AccordionItem>
