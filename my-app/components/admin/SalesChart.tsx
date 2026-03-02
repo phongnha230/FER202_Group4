@@ -2,17 +2,14 @@
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-const data = [
-    { name: "01 Oct", revenue: 4000, orders: 2400 },
-    { name: "05 Oct", revenue: 3000, orders: 1398 },
-    { name: "10 Oct", revenue: 2000, orders: 9800 },
-    { name: "15 Oct", revenue: 2780, orders: 3908 },
-    { name: "20 Oct", revenue: 1890, orders: 4800 },
-    { name: "25 Oct", revenue: 2390, orders: 3800 },
-    { name: "30 Oct", revenue: 3490, orders: 4300 },
-];
+interface ChartDataPoint {
+    name: string;
+    revenue: number;
+    orders: number;
+}
 
-export function SalesChart() {
+export function SalesChart({ timeRange = '30D', data = [] }: { timeRange?: '24H' | '7D' | '30D', data?: ChartDataPoint[] }) {
+
     return (
         <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
