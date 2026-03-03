@@ -1,44 +1,85 @@
 "use client";
 
+import { useEffect, useState, useCallback } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { supabase } from "@/lib/supabase/client";
 
-// Mock data keyed by time range
-const allData = {
-    "24H": [
-        { name: "00:00", revenue: 120, orders: 8 },
-        { name: "04:00", revenue: 60, orders: 3 },
-        { name: "08:00", revenue: 340, orders: 22 },
-        { name: "12:00", revenue: 580, orders: 41 },
-        { name: "16:00", revenue: 740, orders: 55 },
-        { name: "20:00", revenue: 430, orders: 30 },
-        { name: "23:59", revenue: 210, orders: 14 },
-    ],
-    "7D": [
-        { name: "Mon", revenue: 1200, orders: 80 },
-        { name: "Tue", revenue: 900, orders: 60 },
-        { name: "Wed", revenue: 1500, orders: 110 },
-        { name: "Thu", revenue: 1800, orders: 140 },
-        { name: "Fri", revenue: 2200, orders: 170 },
-        { name: "Sat", revenue: 2600, orders: 200 },
-        { name: "Sun", revenue: 1900, orders: 145 },
-    ],
-    "30D": [
-        { name: "01 Oct", revenue: 4000, orders: 2400 },
-        { name: "05 Oct", revenue: 3000, orders: 1398 },
-        { name: "10 Oct", revenue: 2000, orders: 9800 },
-        { name: "15 Oct", revenue: 2780, orders: 3908 },
-        { name: "20 Oct", revenue: 1890, orders: 4800 },
-        { name: "25 Oct", revenue: 2390, orders: 3800 },
-        { name: "30 Oct", revenue: 3490, orders: 4300 },
-    ],
-};
+interface ChartDataPoint {
+    name: string;
+    revenue: number;
+    orders: number;
+}
+
+interface OrderRow {
+    total_price: number;
+    created_at: string;
+}
 
 interface SalesChartProps {
     timeRange: "24H" | "7D" | "30D";
 }
 
 export function SalesChart({ timeRange }: SalesChartProps) {
-    const data = allData[timeRange];
+    const [data, setData] = useState<ChartDataPoint[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchChartData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const now = new Date();
+            let startDate: Date;
+
+            if (timeRange === "24H") {
+                startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            } else if (timeRange === "7D") {
+                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            } else {
+                startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            }
+
+            const { data: ordersData, error } = await supabase
+                .from("orders")
+                .select("total_price, created_at")
+                .gte("created_at", startDate.toISOString())
+                .order("created_at", { ascending: true });
+
+            if (error) {
+                console.error("Error fetching chart data:", error);
+                setData([]);
+                return;
+            }
+
+            const orders = (ordersData || []) as OrderRow[];
+            let chartData: ChartDataPoint[];
+
+            if (timeRange === "24H") {
+                chartData = groupByHour(orders, now);
+            } else if (timeRange === "7D") {
+                chartData = groupByDay(orders, 7);
+            } else {
+                chartData = groupByDay(orders, 30);
+            }
+
+            setData(chartData);
+        } catch (err) {
+            console.error("Error fetching chart data:", err);
+            setData([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [timeRange]);
+
+    useEffect(() => {
+        fetchChartData();
+    }, [fetchChartData]);
+
+    if (loading) {
+        return (
+            <div className="h-[300px] w-full flex items-center justify-center">
+                <div className="animate-pulse text-sm text-slate-400">Loading chart...</div>
+            </div>
+        );
+    }
 
     return (
         <div className="h-[300px] w-full">
@@ -96,4 +137,81 @@ export function SalesChart({ timeRange }: SalesChartProps) {
             </ResponsiveContainer>
         </div>
     );
+}
+
+/** Group orders into hourly buckets for the last 24 hours */
+function groupByHour(orders: OrderRow[], now: Date): ChartDataPoint[] {
+    // Create 8 time slots across 24 hours (every 3 hours)
+    const slots: ChartDataPoint[] = [];
+    const slotHours = [0, 3, 6, 9, 12, 15, 18, 21];
+
+    for (const hour of slotHours) {
+        slots.push({
+            name: `${hour.toString().padStart(2, "0")}:00`,
+            revenue: 0,
+            orders: 0,
+        });
+    }
+
+    for (const order of orders) {
+        const orderDate = new Date(order.created_at);
+        const orderHour = orderDate.getHours();
+        // Find the closest slot
+        let slotIndex = 0;
+        for (let i = slotHours.length - 1; i >= 0; i--) {
+            if (orderHour >= slotHours[i]) {
+                slotIndex = i;
+                break;
+            }
+        }
+        slots[slotIndex].revenue += order.total_price || 0;
+        slots[slotIndex].orders += 1;
+    }
+
+    // Only show up to the current time slot
+    const currentHour = now.getHours();
+    const currentSlotIndex = slotHours.findIndex((h, i) => {
+        const nextH = slotHours[i + 1] ?? 24;
+        return currentHour >= h && currentHour < nextH;
+    });
+
+    return slots.slice(0, (currentSlotIndex >= 0 ? currentSlotIndex : slots.length - 1) + 1);
+}
+
+/** Group orders into daily buckets */
+function groupByDay(orders: OrderRow[], days: number): ChartDataPoint[] {
+    const now = new Date();
+    const slots: ChartDataPoint[] = [];
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const label = days <= 7
+            ? dayNames[d.getDay()]
+            : `${d.getDate().toString().padStart(2, "0")} ${monthNames[d.getMonth()]}`;
+        slots.push({
+            name: label,
+            revenue: 0,
+            orders: 0,
+        });
+    }
+
+    for (const order of orders) {
+        const orderDate = new Date(order.created_at);
+        const diffMs = now.getTime() - orderDate.getTime();
+        const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+        const slotIndex = days - 1 - diffDays;
+        if (slotIndex >= 0 && slotIndex < slots.length) {
+            slots[slotIndex].revenue += order.total_price || 0;
+            slots[slotIndex].orders += 1;
+        }
+    }
+
+    // For 30D, sample every 5 days to avoid too many labels
+    if (days === 30) {
+        return slots.filter((_, i) => i % 5 === 0 || i === slots.length - 1);
+    }
+
+    return slots;
 }

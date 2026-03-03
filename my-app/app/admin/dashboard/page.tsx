@@ -71,7 +71,7 @@ export default function DashboardPage() {
     const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
     const [loading, setLoading] = useState(true);
     const [lowStockLoading, setLowStockLoading] = useState(true);
-    const [timeRange, setTimeRange] = useState<TimeRange>("30D");
+    const [timeRange, setTimeRange] = useState<TimeRange>("24H");
 
     useEffect(() => {
         async function loadDashboardData() {
