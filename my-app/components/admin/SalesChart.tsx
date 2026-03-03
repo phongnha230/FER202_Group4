@@ -2,17 +2,44 @@
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-const data = [
-    { name: "01 Oct", revenue: 4000, orders: 2400 },
-    { name: "05 Oct", revenue: 3000, orders: 1398 },
-    { name: "10 Oct", revenue: 2000, orders: 9800 },
-    { name: "15 Oct", revenue: 2780, orders: 3908 },
-    { name: "20 Oct", revenue: 1890, orders: 4800 },
-    { name: "25 Oct", revenue: 2390, orders: 3800 },
-    { name: "30 Oct", revenue: 3490, orders: 4300 },
-];
+// Mock data keyed by time range
+const allData = {
+    "24H": [
+        { name: "00:00", revenue: 120, orders: 8 },
+        { name: "04:00", revenue: 60, orders: 3 },
+        { name: "08:00", revenue: 340, orders: 22 },
+        { name: "12:00", revenue: 580, orders: 41 },
+        { name: "16:00", revenue: 740, orders: 55 },
+        { name: "20:00", revenue: 430, orders: 30 },
+        { name: "23:59", revenue: 210, orders: 14 },
+    ],
+    "7D": [
+        { name: "Mon", revenue: 1200, orders: 80 },
+        { name: "Tue", revenue: 900, orders: 60 },
+        { name: "Wed", revenue: 1500, orders: 110 },
+        { name: "Thu", revenue: 1800, orders: 140 },
+        { name: "Fri", revenue: 2200, orders: 170 },
+        { name: "Sat", revenue: 2600, orders: 200 },
+        { name: "Sun", revenue: 1900, orders: 145 },
+    ],
+    "30D": [
+        { name: "01 Oct", revenue: 4000, orders: 2400 },
+        { name: "05 Oct", revenue: 3000, orders: 1398 },
+        { name: "10 Oct", revenue: 2000, orders: 9800 },
+        { name: "15 Oct", revenue: 2780, orders: 3908 },
+        { name: "20 Oct", revenue: 1890, orders: 4800 },
+        { name: "25 Oct", revenue: 2390, orders: 3800 },
+        { name: "30 Oct", revenue: 3490, orders: 4300 },
+    ],
+};
 
-export function SalesChart() {
+interface SalesChartProps {
+    timeRange: "24H" | "7D" | "30D";
+}
+
+export function SalesChart({ timeRange }: SalesChartProps) {
+    const data = allData[timeRange];
+
     return (
         <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -43,9 +70,7 @@ export function SalesChart() {
                         tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 'bold' }}
                         dy={10}
                     />
-                    <YAxis
-                        hide
-                    />
+                    <YAxis hide />
                     <Tooltip
                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                         itemStyle={{ fontSize: '12px', fontWeight: '500' }}

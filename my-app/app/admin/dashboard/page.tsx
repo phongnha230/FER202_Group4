@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DollarSign, ShoppingBag, Users, Package, Loader2 } from "lucide-react";
+import { DollarSign, ShoppingBag, Users, Package, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,8 @@ interface ProductWithVariantsRow {
     product_variants: ProductVariantRow[] | null;
 }
 
+type TimeRange = "24H" | "7D" | "30D";
+
 export default function DashboardPage() {
     const [stats, setStats] = useState<DashboardStats>({
         totalSales: 0,
@@ -69,6 +71,7 @@ export default function DashboardPage() {
     const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
     const [loading, setLoading] = useState(true);
     const [lowStockLoading, setLowStockLoading] = useState(true);
+    const [timeRange, setTimeRange] = useState<TimeRange>("30D");
 
     useEffect(() => {
         async function loadDashboardData() {
@@ -300,15 +303,25 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center border rounded-md overflow-hidden text-xs">
-                                <button className="px-3 py-1.5 bg-white hover:bg-slate-50 border-r">24H</button>
-                                <button className="px-3 py-1.5 bg-white hover:bg-slate-50 border-r">7D</button>
-                                <button className="px-3 py-1.5 bg-blue-600 text-white font-medium">30D</button>
+                            <div className="flex items-center border rounded-md overflow-hidden text-xs font-medium">
+                                {(["24H", "7D", "30D"] as TimeRange[]).map((range) => (
+                                    <button
+                                        key={range}
+                                        onClick={() => setTimeRange(range)}
+                                        className={`px-3 py-1.5 transition-colors ${
+                                            timeRange === range
+                                                ? "bg-blue-600 text-white"
+                                                : "bg-white text-slate-600 hover:bg-slate-50 border-r last:border-r-0"
+                                        }`}
+                                    >
+                                        {range}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent className="h-[300px] w-full pt-4 pl-0 pr-2">
-                        <SalesChart />
+                        <SalesChart timeRange={timeRange} />
                     </CardContent>
                 </Card>
 
@@ -320,41 +333,64 @@ export default function DashboardPage() {
                             {lowStockProducts.length}
                         </Badge>
                     </CardHeader>
-                    <CardContent className="grid gap-6">
+                    <CardContent className="grid gap-4">
                         {lowStockLoading ? (
-                            <p className="text-sm text-slate-500 text-center py-4">Loading stock alerts...</p>
+                            <div className="flex flex-col items-center gap-2 py-6">
+                                <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                                <p className="text-xs text-slate-400">Checking inventory...</p>
+                            </div>
                         ) : lowStockProducts.length > 0 ? (
-                            lowStockProducts.map((item) => (
-                                <div key={item.id} className="flex items-start gap-3">
-                                    <div className="h-12 w-12 rounded bg-slate-100 flex items-center justify-center overflow-hidden relative">
-                                        {item.image ? (
-                                            <Image
-                                                src={item.image}
-                                                alt={item.name}
-                                                fill
-                                                className="object-cover"
-                                                sizes="48px"
-                                            />
-                                        ) : (
-                                            <span className="text-xs text-slate-400">IMG</span>
-                                        )}
-                                    </div>
-                                    <div className="space-y-1 flex-1">
-                                        <p className="text-sm font-bold text-slate-900 leading-none truncate">{item.name}</p>
-                                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                            <div 
-                                                className={`h-full rounded-full ${item.total_stock < 20 ? 'bg-rose-500' : 'bg-orange-500'}`}
-                                                style={{ width: `${Math.min(item.total_stock, 100)}%` }}
-                                            ></div>
-                                        </div>
-                                        <p className={`text-[10px] uppercase font-bold ${item.total_stock < 20 ? 'text-rose-600' : 'text-orange-600'}`}>
-                                            {item.total_stock < 20 ? 'Low Stock:' : ''} {item.total_stock} Units
-                                        </p>
-                                    </div>
+                            <>
+                                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 rounded px-2 py-1">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    {lowStockProducts.length} item{lowStockProducts.length > 1 ? 's' : ''} need restocking
                                 </div>
-                            ))
+                                {lowStockProducts.map((item) => (
+                                    <div key={item.id} className="flex items-start gap-3">
+                                        <div className="h-12 w-12 rounded bg-slate-100 flex items-center justify-center overflow-hidden relative flex-shrink-0">
+                                            {item.image ? (
+                                                <Image
+                                                    src={item.image}
+                                                    alt={item.name}
+                                                    fill
+                                                    className="object-cover"
+                                                    sizes="48px"
+                                                />
+                                            ) : (
+                                                <span className="text-xs text-slate-400">IMG</span>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1 flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-1">
+                                                <p className="text-sm font-bold text-slate-900 leading-none truncate">{item.name}</p>
+                                                <Link
+                                                    href={`/admin/inventory`}
+                                                    className="text-[10px] font-bold text-blue-600 hover:text-blue-700 whitespace-nowrap flex-shrink-0"
+                                                >
+                                                    Restock →
+                                                </Link>
+                                            </div>
+                                            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all ${item.total_stock < 20 ? 'bg-rose-500' : 'bg-orange-400'}`}
+                                                    style={{ width: `${Math.min(item.total_stock * 2, 100)}%` }}
+                                                ></div>
+                                            </div>
+                                            <p className={`text-[10px] uppercase font-bold ${item.total_stock < 20 ? 'text-rose-600' : 'text-orange-600'}`}>
+                                                {item.total_stock < 20 ? '⚠ Critical:' : 'Low:'} {item.total_stock} units left
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
                         ) : (
-                            <p className="text-sm text-slate-500 text-center py-4">No stock alerts</p>
+                            <div className="flex flex-col items-center gap-2 py-6">
+                                <div className="h-10 w-10 rounded-full bg-emerald-50 flex items-center justify-center">
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                </div>
+                                <p className="text-sm font-bold text-slate-700">All Good!</p>
+                                <p className="text-xs text-slate-400 text-center">All products have sufficient stock levels.</p>
+                            </div>
                         )}
 
                         <div className="mt-4 pt-4 border-t">

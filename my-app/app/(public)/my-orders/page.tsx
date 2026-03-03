@@ -546,7 +546,7 @@ export default function MyOrdersPage() {
                                 <div className="flex items-center gap-2">
                                     {order.status === 'delivered' && !order.hasReview && (
                                         <Button variant="outline" className="h-10 px-4 rounded-sm text-xs font-bold text-red-500 border-red-500 hover:bg-red-50 hover:text-red-600" asChild>
-                                            <Link href={`/write-review/${order.id.split('-')[0]}`}>
+                                            <Link href={`/write-review/${order.id.includes('-') ? order.id.split('-').slice(0, 5).join('-') : order.id}?productId=${order.product.id}`}>
                                                 <PenLine className="w-3.5 h-3.5 mr-2" />
                                                 WRITE A REVIEW
                                             </Link>

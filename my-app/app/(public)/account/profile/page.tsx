@@ -126,8 +126,7 @@ export default function ProfilePage() {
                         street: street,
                         city: city,
                         country: country,
-                        updated_at: new Date().toISOString()
-                    });
+                    }, { onConflict: 'id' });
 
                 if (profileError) throw profileError;
             }
@@ -209,8 +208,7 @@ export default function ProfilePage() {
                 .upsert({ 
                     id: user.id,
                     avatar_url: publicUrl,
-                    updated_at: new Date().toISOString()
-                });
+                }, { onConflict: 'id' });
 
             if (updateProfileError) throw updateProfileError;
 

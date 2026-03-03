@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Star, Camera, X, ThumbsUp, ThumbsDown, Info, Loader2, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase/client";
@@ -22,7 +22,9 @@ interface ProductInfo {
 export default function WriteReviewPage() {
     const params = useParams();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const orderId = params.id as string;
+    const productIdParam = searchParams.get('productId');
     const { user, isAuthenticated } = useUserStore();
 
     const [product, setProduct] = useState<ProductInfo | null>(null);
@@ -62,8 +64,8 @@ export default function WriteReviewPage() {
                     return;
                 }
 
-                // Get the first item from the order
-                const firstItem = (data?.order_items as unknown[])?.[0] as {
+                // Parse all items from the order
+                const orderItems = (data?.order_items as unknown[]) as {
                     variant?: {
                         size?: string;
                         color?: string;
@@ -73,18 +75,51 @@ export default function WriteReviewPage() {
                             image?: string;
                             slug?: string;
                         };
-                    };
-                } | undefined;
+                    } | {
+                        size?: string;
+                        color?: string;
+                        product?: {
+                            id?: string;
+                            name?: string;
+                            image?: string;
+                            slug?: string;
+                        };
+                    }[];
+                }[] | undefined;
 
-                if (firstItem?.variant?.product) {
-                    setProduct({
-                        id: firstItem.variant.product.id || 'unknown',
-                        name: firstItem.variant.product.name || 'Unknown Product',
-                        image: firstItem.variant.product.image || '/images/product-mock.jpg',
-                        slug: firstItem.variant.product.slug,
-                        size: firstItem.variant.size || 'N/A',
-                        color: firstItem.variant.color || 'N/A',
+                if (!orderItems || orderItems.length === 0) {
+                    console.warn('No items found in order');
+                    return;
+                }
+
+                // Find the matching item by productId, or fallback to first item
+                let matchedItem = orderItems[0]; // default to first
+                if (productIdParam) {
+                    const found = orderItems.find(item => {
+                        const variantRaw = item?.variant;
+                        const variant = Array.isArray(variantRaw) ? variantRaw[0] : variantRaw;
+                        return variant?.product?.id === productIdParam;
                     });
+                    if (found) {
+                        matchedItem = found;
+                    }
+                }
+
+                // Supabase có thể trả về variant là array hoặc object đơn
+                const variantRaw = matchedItem?.variant;
+                const variant = Array.isArray(variantRaw) ? variantRaw[0] : variantRaw;
+
+                if (variant?.product) {
+                    setProduct({
+                        id: variant.product.id || 'unknown',
+                        name: variant.product.name || 'Unknown Product',
+                        image: variant.product.image || '/images/product-mock.jpg',
+                        slug: variant.product.slug,
+                        size: variant.size || 'N/A',
+                        color: variant.color || 'N/A',
+                    });
+                } else {
+                    console.warn('Could not parse product from order item:', matchedItem);
                 }
             } catch (err) {
                 console.error('Failed to fetch order product:', err);
@@ -94,7 +129,7 @@ export default function WriteReviewPage() {
         }
 
         fetchOrderProduct();
-    }, [orderId]);
+    }, [orderId, productIdParam]);
 
     // Handle submit review
     const handleSubmitReview = async () => {

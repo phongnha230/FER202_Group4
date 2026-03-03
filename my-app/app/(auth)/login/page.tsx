@@ -14,7 +14,6 @@ export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
     
     // Toast notification
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -37,42 +36,31 @@ export default function LoginPage() {
         const supabase = createClient();
 
         try {
-            if (loginMethod === 'password') {
-                const { data, error } = await supabase.auth.signInWithPassword({
-                    email,
-                    password,
-                });
-                if (error) throw error;
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
+            if (error) throw error;
 
-                // Check for admin role
-                let role = data.user?.user_metadata?.role;
-                
-                // If no role in metadata, fetch from profiles table
-                if (!role && data.user) {
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('role')
-                        .eq('id', data.user.id)
-                        .single();
-                    role = profile?.role;
-                }
+            // Check for admin role
+            let role = data.user?.user_metadata?.role;
+            
+            // If no role in metadata, fetch from profiles table
+            if (!role && data.user) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('id', data.user.id)
+                    .single();
+                role = profile?.role;
+            }
 
-                showToast('Successfully logged in!', 'success');
-                
-                if (role === 'admin') {
-                    router.push('/admin/dashboard');
-                } else {
-                    router.push('/');
-                }
+            showToast('Successfully logged in!', 'success');
+            
+            if (role === 'admin') {
+                router.push('/admin/dashboard');
             } else {
-                const { error } = await supabase.auth.signInWithOtp({
-                    email,
-                    options: {
-                        emailRedirectTo: `${location.origin}/api/auth/callback`,
-                    },
-                });
-                if (error) throw error;
-                showToast('Check your email for the login link!', 'success');
+                router.push('/');
             }
         } catch (error) {
             showToast((error as Error).message, 'error');
@@ -162,29 +150,7 @@ export default function LoginPage() {
                             <p className="text-slate-500 font-medium">Login to your account to continue</p>
                         </div>
 
-                        {/* Method Toggle */}
-                        <div className="flex gap-6 border-b border-slate-200 pb-1">
-                            <button
-                                onClick={() => setLoginMethod('password')}
-                                className={`pb-2 text-sm font-bold tracking-wide uppercase transition-colors ${
-                                    loginMethod === 'password'
-                                        ? 'text-slate-900 border-b-2 border-slate-900'
-                                        : 'text-slate-400 hover:text-slate-600'
-                                }`}
-                            >
-                                Password
-                            </button>
-                            <button
-                                onClick={() => setLoginMethod('otp')}
-                                className={`pb-2 text-sm font-bold tracking-wide uppercase transition-colors ${
-                                    loginMethod === 'otp'
-                                        ? 'text-slate-900 border-b-2 border-slate-900'
-                                        : 'text-slate-400 hover:text-slate-600'
-                                }`}
-                            >
-                                Magic Link
-                            </button>
-                        </div>
+
 
                         <form onSubmit={handleLogin} className="space-y-5">
                             <div className="space-y-4">
@@ -200,31 +166,27 @@ export default function LoginPage() {
                                     />
                                 </div>
                                 
-                                {loginMethod === 'password' && (
-                                    <div className="relative">
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                                        <Input
-                                            type="password"
-                                            placeholder="Password"
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            required
-                                            className="pl-12 h-12 rounded-full bg-slate-50 border-slate-200 focus:border-slate-900 focus:ring-slate-900/20"
-                                        />
-                                    </div>
-                                )}
+                                <div className="relative">
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                                    <Input
+                                        type="password"
+                                        placeholder="Password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        required
+                                        className="pl-12 h-12 rounded-full bg-slate-50 border-slate-200 focus:border-slate-900 focus:ring-slate-900/20"
+                                    />
+                                </div>
                             </div>
 
-                            {loginMethod === 'password' && (
-                                <div className="flex justify-end">
-                                    <Link
-                                        href="/forgot-password"
-                                        className="text-xs font-bold text-slate-400 hover:text-slate-900 uppercase tracking-wide"
-                                    >
-                                        Forgot your password?
-                                    </Link>
-                                </div>
-                            )}
+                            <div className="flex justify-end">
+                                <Link
+                                    href="/forgot-password"
+                                    className="text-xs font-bold text-slate-400 hover:text-slate-900 uppercase tracking-wide"
+                                >
+                                    Forgot your password?
+                                </Link>
+                            </div>
 
                             <Button 
                                 disabled={isLoading} 
@@ -233,7 +195,7 @@ export default function LoginPage() {
                                 {isLoading ? (
                                     <Loader2 className="w-5 h-5 animate-spin mr-2" />
                                 ) : null}
-                                {loginMethod === 'password' ? 'Log In' : 'Send Magic Link'}
+                                Log In
                             </Button>
                         </form>
 
