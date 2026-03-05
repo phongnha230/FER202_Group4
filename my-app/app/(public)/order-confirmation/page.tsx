@@ -197,6 +197,7 @@ function OrderConfirmationContent() {
                         {order.shipping ? (
                             <p className="text-gray-600 whitespace-pre-line">
                                 {order.shipping.receiver_name}<br />
+                                {order.shipping.receiver_phone && <>{order.shipping.receiver_phone}<br /></>}
                                 {order.shipping.receiver_address}
                             </p>
                         ) : (

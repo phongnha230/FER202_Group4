@@ -75,11 +75,13 @@ interface OrderDetail {
         full_name: string;
         phone: string;
         email: string;
+        address?: string;
     };
     shipping: {
         receiver_name: string;
         receiver_phone: string;
         receiver_address: string;
+        shipping_fee: number;
         status: string;
     } | null;
     items: {
@@ -101,12 +103,14 @@ interface OrderDetail {
 interface ProfileResult {
     full_name: string | null;
     phone?: string | null;
+    address?: string | null;
 }
 
 interface ShippingOrderResult {
     receiver_name: string;
     receiver_phone: string;
     receiver_address: string;
+    shipping_fee: number;
     status: string;
 }
 
@@ -143,7 +147,7 @@ interface OrderDetailQueryResult {
     payment_method: string;
     created_at: string;
     profiles: ProfileResult | null;
-    shipping_orders: ShippingOrderResult[];
+    shipping_orders: ShippingOrderResult[] | ShippingOrderResult | null;
     order_items: OrderItemResult[];
 }
 
@@ -217,46 +221,16 @@ export default function OrdersPage() {
         try {
             setDetailLoading(true);
             setShowDetailModal(true);
+            const response = await fetch(`/api/admin/orders/detail?orderId=${orderId}`);
+            const result = await response.json();
+            if (!response.ok || !result?.data) {
+                throw new Error(result?.error || 'Failed to load order details');
+            }
 
-            const { data, error } = await supabase
-                .from('orders')
-                .select(`
-                    id,
-                    total_price,
-                    order_status,
-                    payment_status,
-                    payment_method,
-                    created_at,
-                    profiles:user_id (
-                        full_name,
-                        phone
-                    ),
-                    shipping_orders (
-                        receiver_name,
-                        receiver_phone,
-                        receiver_address,
-                        status
-                    ),
-                    order_items (
-                        id,
-                        quantity,
-                        price,
-                        variant:product_variants (
-                            size,
-                            color,
-                            product:products (
-                                name,
-                                image
-                            )
-                        )
-                    )
-                `)
-                .eq('id', orderId)
-                .single();
-
-            if (error) throw error;
-
-            const typedData = data as unknown as OrderDetailQueryResult;
+            const typedData = result.data as OrderDetailQueryResult;
+            const shipping = Array.isArray(typedData.shipping_orders)
+                ? (typedData.shipping_orders[0] || null)
+                : (typedData.shipping_orders || null);
             
             const orderDetail: OrderDetail = {
                 id: typedData.id,
@@ -269,8 +243,9 @@ export default function OrdersPage() {
                     full_name: typedData.profiles?.full_name || 'Unknown',
                     phone: typedData.profiles?.phone || 'N/A',
                     email: '',
+                    address: typedData.profiles?.address || undefined,
                 },
-                shipping: typedData.shipping_orders?.[0] || null,
+                shipping,
                 items: (typedData.order_items || []).map(item => ({
                     id: item.id,
                     quantity: item.quantity,
@@ -723,31 +698,35 @@ export default function OrdersPage() {
                             </div>
 
                             {/* Shipping Info */}
-                            {selectedOrder.shipping && (
-                                <div className="p-4 border rounded-lg">
-                                    <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                                        <MapPin className="h-4 w-4 text-blue-600" />
-                                        Shipping Information
-                                    </h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                        <div className="flex items-center gap-2">
-                                            <User className="h-4 w-4 text-slate-400" />
-                                            <span className="text-slate-600">Receiver:</span>
-                                            <span className="font-medium text-slate-900">{selectedOrder.shipping.receiver_name}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Phone className="h-4 w-4 text-slate-400" />
-                                            <span className="text-slate-600">Phone:</span>
-                                            <span className="font-medium text-slate-900">{selectedOrder.shipping.receiver_phone}</span>
-                                        </div>
-                                        <div className="flex items-start gap-2 md:col-span-2">
-                                            <MapPin className="h-4 w-4 text-slate-400 mt-0.5" />
-                                            <span className="text-slate-600">Address:</span>
-                                            <span className="font-medium text-slate-900">{selectedOrder.shipping.receiver_address}</span>
-                                        </div>
+                            <div className="p-4 border rounded-lg">
+                                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                                    <MapPin className="h-4 w-4 text-blue-600" />
+                                    Shipping Information
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <User className="h-4 w-4 text-slate-400" />
+                                        <span className="text-slate-600">Receiver:</span>
+                                        <span className="font-medium text-slate-900">
+                                            {selectedOrder.shipping?.receiver_name || selectedOrder.customer.full_name}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Phone className="h-4 w-4 text-slate-400" />
+                                        <span className="text-slate-600">Phone:</span>
+                                        <span className="font-medium text-slate-900">
+                                            {selectedOrder.shipping?.receiver_phone || selectedOrder.customer.phone || 'N/A'}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-start gap-2 md:col-span-2">
+                                        <MapPin className="h-4 w-4 text-slate-400 mt-0.5" />
+                                        <span className="text-slate-600">Address:</span>
+                                        <span className="font-medium text-slate-900">
+                                            {selectedOrder.shipping?.receiver_address || selectedOrder.customer.address || 'Address not available'}
+                                        </span>
                                     </div>
                                 </div>
-                            )}
+                            </div>
 
                             {/* Order Items */}
                             <div className="border rounded-lg overflow-hidden">
@@ -796,9 +775,36 @@ export default function OrdersPage() {
                             </div>
 
                             {/* Order Total */}
-                            <div className="flex items-center justify-between p-4 bg-slate-900 rounded-lg text-white">
-                                <span className="font-medium">Total Amount</span>
-                                <span className="text-2xl font-bold">${selectedOrder.total_price.toFixed(2)}</span>
+                            <div className="p-4 bg-slate-900 rounded-lg text-white space-y-2">
+                                {(() => {
+                                    const itemsSubtotal = selectedOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                                    const shippingFee = selectedOrder.shipping?.shipping_fee || 0;
+                                    const taxAmount = Math.max(0, selectedOrder.total_price - itemsSubtotal - shippingFee);
+                                    return (
+                                        <>
+                                <div className="flex items-center justify-between text-sm text-slate-300">
+                                    <span>Items Subtotal</span>
+                                    <span>${itemsSubtotal.toFixed(2)}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm text-slate-300">
+                                    <span>Shipping Fee</span>
+                                    <span>
+                                        {shippingFee 
+                                            ? `$${shippingFee.toFixed(2)}` 
+                                            : 'Free'}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm text-slate-300">
+                                    <span>Tax</span>
+                                    <span>${taxAmount.toFixed(2)}</span>
+                                </div>
+                                <div className="border-t border-slate-700 pt-2 flex items-center justify-between">
+                                    <span className="font-medium">Total Amount</span>
+                                    <span className="text-2xl font-bold">${selectedOrder.total_price.toFixed(2)}</span>
+                                </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </div>
                     ) : null}

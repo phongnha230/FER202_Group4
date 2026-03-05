@@ -146,7 +146,7 @@ export default function OrderSummary() {
                     total_price: total,
                     payment_method: paymentMethod,
                     payment_gateway: paymentMethod === 'online' ? (formData.paymentMethod as 'momo' | 'vnpay' | 'card') : undefined,
-                    shipping_info: shippingInfo,
+                    shipping_info: { ...shippingInfo, shipping_fee: shipping },
                 });
                 console.log('Buy Now order result:', result);
                 order = result.data;
@@ -164,7 +164,7 @@ export default function OrderSummary() {
                     total_price: total,
                     payment_method: paymentMethod,
                     payment_gateway: paymentMethod === 'online' ? (formData.paymentMethod as 'momo' | 'vnpay' | 'card') : undefined,
-                    shipping_info: shippingInfo,
+                    shipping_info: { ...shippingInfo, shipping_fee: shipping },
                 });
                 console.log('Cart order result:', result);
                 order = result.data;

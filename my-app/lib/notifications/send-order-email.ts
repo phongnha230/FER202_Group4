@@ -1,7 +1,18 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { sendOrderPlacedEmail, sendOrderSuccessEmail, sendOrderDeliveredEmail, OrderEmailData } from '@/services/email.service';
+import {
+  sendOrderPlacedEmail,
+  sendOrderSuccessEmail,
+  sendOrderDeliveredEmail,
+  sendOrderCancelledEmail,
+  OrderEmailData,
+} from '@/services/email.service';
 
-export type OrderEmailType = 'order_placed' | 'order_success' | 'order_delivered';
+export type OrderEmailType =
+  | 'order_placed'
+  | 'order_success'
+  | 'order_delivered'
+  | 'order_cancelled_by_user'
+  | 'order_cancelled_by_admin';
 
 export async function sendOrderEmail(
   orderId: string,
@@ -25,7 +36,8 @@ export async function sendOrderEmail(
       shipping:shipping_orders(
         receiver_name,
         receiver_phone,
-        receiver_address
+        receiver_address,
+        shipping_fee
       )
     `)
     .eq('id', orderId)
@@ -46,7 +58,6 @@ export async function sendOrderEmail(
     authUser.user.user_metadata?.full_name ||
     authUser.user.user_metadata?.name ||
     customerEmail.split('@')[0];
-
   const rawShipping = order.shipping;
   // Supabase might return an object for 1:1 relation or array
   const shipping = Array.isArray(rawShipping) ? rawShipping[0] : rawShipping;
@@ -54,6 +65,7 @@ export async function sendOrderEmail(
   const receiverName = shipping?.receiver_name || customerName;
   const receiverPhone = shipping?.receiver_phone || '';
   const receiverAddress = shipping?.receiver_address || '';
+  const shippingFee = (shipping as { shipping_fee?: number } | null)?.shipping_fee || 0;
 
   type OrderItemRow = {
     quantity: number;
@@ -69,11 +81,17 @@ export async function sendOrderEmail(
     price: item.price * item.quantity,
   }));
 
+  const itemSubtotal = items.reduce((sum, item) => sum + item.price, 0);
+  const taxes = itemSubtotal * 0.08;
+
   const emailData: OrderEmailData = {
     orderId: order.id,
     customerName,
     customerEmail,
     totalPrice: order.total_price,
+    shippingFee,
+    itemSubtotal,
+    taxes,
     orderItems: items,
     receiverName,
     receiverAddress,
@@ -85,6 +103,12 @@ export async function sendOrderEmail(
   }
   if (type === 'order_delivered') {
     return sendOrderDeliveredEmail(emailData);
+  }
+  if (type === 'order_cancelled_by_user') {
+    return sendOrderCancelledEmail({ ...emailData, cancelledBy: 'user' });
+  }
+  if (type === 'order_cancelled_by_admin') {
+    return sendOrderCancelledEmail({ ...emailData, cancelledBy: 'admin' });
   }
   return sendOrderSuccessEmail(emailData);
 }

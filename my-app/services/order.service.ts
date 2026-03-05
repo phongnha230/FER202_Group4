@@ -10,6 +10,11 @@ import {
 
 import { deductStock, restoreStock } from '@/services/inventory.service';
 
+function toSingle<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
 // Type for Buy Now order request
 interface CreateBuyNowOrderRequest {
   variant_id: string;
@@ -22,6 +27,7 @@ interface CreateBuyNowOrderRequest {
     receiver_name: string;
     receiver_phone: string;
     receiver_address: string;
+    shipping_fee?: number;
   };
 }
 
@@ -100,6 +106,7 @@ export async function createBuyNowOrder(
         receiver_name: request.shipping_info.receiver_name,
         receiver_phone: request.shipping_info.receiver_phone,
         receiver_address: request.shipping_info.receiver_address,
+        shipping_fee: request.shipping_info.shipping_fee ?? 0,
         status: 'created',
       });
 
@@ -219,6 +226,7 @@ export async function createOrder(
         receiver_name: request.shipping_info.receiver_name,
         receiver_phone: request.shipping_info.receiver_phone,
         receiver_address: request.shipping_info.receiver_address,
+        shipping_fee: request.shipping_info.shipping_fee ?? 0,
         status: 'created',
       });
 
@@ -275,16 +283,23 @@ export async function getOrder(orderId: string): Promise<{ data: OrderWithDetail
     return { data: null, error: orderError };
   }
 
+  type RawOrderResult = Order & {
+    items?: (OrderItem & { variant: ProductVariant & { product: Product } })[];
+    shipping?: ShippingOrder | ShippingOrder[] | null;
+    payment?: Payment | Payment[] | null;
+  };
+  const rawOrder = order as unknown as RawOrderResult;
+
   // Transform payment array to single object
   const transformedOrder: OrderWithDetails = {
-    ...order,
-    items: order.items?.map((item: OrderItem & { variant: ProductVariant & { product: Product } }) => ({
+    ...rawOrder,
+    items: rawOrder.items?.map((item: OrderItem & { variant: ProductVariant & { product: Product } }) => ({
       ...item,
       variant: item.variant,
       product: item.variant?.product,
     })),
-    shipping: order.shipping?.[0] || null,
-    payment: order.payment?.[0] || null,
+    shipping: toSingle(rawOrder.shipping),
+    payment: toSingle(rawOrder.payment),
   };
 
   return { data: transformedOrder, error: null };
@@ -340,8 +355,8 @@ export async function getUserOrders(
   // Use unknown assertion check
   type RawOrder = Order & { 
       items: (OrderItem & { variant: ProductVariant & { product: Product } })[]; 
-      shipping: ShippingOrder[];  
-      payment: Payment[];
+      shipping: ShippingOrder | ShippingOrder[] | null;
+      payment: Payment | Payment[] | null;
   };
 
   const transformedOrders: OrderWithDetails[] = (data || []).map((raw: unknown) => {
@@ -353,8 +368,8 @@ export async function getUserOrders(
         variant: item.variant,
         product: item.variant?.product,
       })),
-      shipping: typedOrder.shipping?.[0] || null,
-      payment: typedOrder.payment?.[0] || null,
+      shipping: toSingle(typedOrder.shipping),
+      payment: toSingle(typedOrder.payment),
     };
   });
 

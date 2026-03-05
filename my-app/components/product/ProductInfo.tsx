@@ -58,10 +58,11 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
         if (!variants.length) return;
         
         const matchingVariant = variants.find(v => 
-            v.color === selectedColor && v.size === selectedSize
+            v.color?.toLowerCase().trim() === selectedColor?.toLowerCase().trim() && 
+            v.size?.toLowerCase().trim() === selectedSize?.toLowerCase().trim()
         );
         
-        setCurrentStock(matchingVariant ? matchingVariant.stock : null);
+        setCurrentStock(matchingVariant ? matchingVariant.stock : 0);
     }, [selectedColor, selectedSize, variants]);
 
     const updateCartData = async () => {
@@ -171,9 +172,10 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                         Stock: {currentStock}
                     </p>
                 )}
-                {currentStock === 0 && (
-                     <p className="text-xs text-red-600 font-medium mt-1 mb-4">
-                        Out of stock
+                {variants.length > 0 && (currentStock === 0 || currentStock === null) && (
+                    <p className="text-sm text-red-600 font-semibold mt-1 mb-4 flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 rounded-full bg-red-600"></span>
+                        Sản phẩm tạm hết hàng — vui lòng chọn phân loại khác
                     </p>
                 )}
             </div>
@@ -182,8 +184,9 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
             <div className="flex gap-4 mt-2">
                 <Button
                     variant="outline"
-                    className="flex-1 h-12 text-base border-black hover:bg-black hover:text-white transition-colors"
+                    className="flex-1 h-12 text-base border-black hover:bg-black hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     size="lg"
+                    disabled={currentStock === 0 || currentStock === null}
                     onClick={async () => {
                         softFirework();
                         const { user, isAuthenticated } = useUserStore.getState();
@@ -283,9 +286,9 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                     Add to Cart
                 </Button>
                 <Button
-                    className="flex-1 h-12 text-base btn-primary"
+                    className="flex-1 h-12 text-base btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     size="lg"
-                    disabled={variants.length === 0}
+                    disabled={variants.length === 0 || currentStock === 0 || currentStock === null}
                     onClick={async (e) => {
                         const { user, isAuthenticated } = useUserStore.getState();
                          if (!isAuthenticated || !user) {

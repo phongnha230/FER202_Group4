@@ -26,12 +26,16 @@ import clsx from "clsx";
 
 type OrderStatus = 'ordered' | 'shipped' | 'delivered' | 'returned';
 
-interface Product {
-    id: string;
+interface OrderItem {
+    productId: string;
     name: string;
     image: string;
     price: number;
+    size: string;
+    color: string;
+    quantity: number;
     slug?: string;
+    hasReview: boolean;
 }
 
 interface ShippingInfo {
@@ -40,6 +44,7 @@ interface ShippingInfo {
     receiver_address: string;
     provider: string;
     shipping_code?: string;
+    shipping_fee: number;
     status: string;
 }
 
@@ -49,16 +54,19 @@ interface Order {
     date: string; // ISO format
     status: OrderStatus;
     dbStatus: string; // Original DB status for cancel logic
-    hasReview?: boolean;
-    product: Product;
-    size: string;
-    color: string;
-    quantity: number;
-    deliveryEstimate?: string;
+    items: OrderItem[];
     totalPrice: number;
     paymentMethod: string;
     paymentStatus: string;
     shipping?: ShippingInfo;
+}
+
+interface Product {
+    id: string;
+    name: string;
+    image: string;
+    price: number;
+    slug?: string;
 }
 
 export default function MyOrdersPage() {
@@ -109,64 +117,60 @@ export default function MyOrdersPage() {
 
             const reviews = userReviews || [];
 
-            // Map DB orders to UI Order format
-            // Flattening items to match the current UI design (one card per item)
-            const mappedOrders: Order[] = [];
-            
-            data.forEach(dbOrder => {
-                dbOrder.items?.forEach((item) => { 
-                     let uiStatus: OrderStatus = 'ordered';
-                     if (dbOrder.order_status === 'shipping') uiStatus = 'shipped';
-                     if (dbOrder.order_status === 'delivered' || dbOrder.order_status === 'completed') uiStatus = 'delivered';
-                     if (dbOrder.order_status === 'returned' || dbOrder.order_status === 'cancelled') uiStatus = 'returned';
+            // Map DB orders to UI Order format - GROUP by order (not flatten per item)
+            const mappedOrders: Order[] = data.map(dbOrder => {
+                let uiStatus: OrderStatus = 'ordered';
+                if (dbOrder.order_status === 'shipping') uiStatus = 'shipped';
+                if (dbOrder.order_status === 'delivered' || dbOrder.order_status === 'completed') uiStatus = 'delivered';
+                if (dbOrder.order_status === 'returned' || dbOrder.order_status === 'cancelled') uiStatus = 'returned';
 
-                     // Check item.product (mapped in service) or item.variant.product
-                     // The type definition from getUserOrders ensures item has variant and product structure
-                     // We cast to specific type to avoid TS error about missing 'product' on base ProductVariant type
-                     const variantWithProduct = item.variant as (import('@/types/database.types').ProductVariant & { product: Product }) | null;
-                     const productData = item.product || variantWithProduct?.product;
+                // Map shipping info
+                const shippingInfo: ShippingInfo | undefined = dbOrder.shipping ? {
+                    receiver_name: dbOrder.shipping.receiver_name,
+                    receiver_phone: dbOrder.shipping.receiver_phone,
+                    receiver_address: dbOrder.shipping.receiver_address,
+                    provider: dbOrder.shipping.provider,
+                    shipping_code: dbOrder.shipping.shipping_code || undefined,
+                    shipping_fee: dbOrder.shipping.shipping_fee || 0,
+                    status: dbOrder.shipping.status,
+                } : undefined;
 
-                     const productId = productData?.id || item.variant_id || 'unknown';
-
-                     const hasReview = reviews.some((review) => 
+                // Map all items in this order
+                const orderItems: OrderItem[] = (dbOrder.items || []).map(item => {
+                    const variantWithProduct = item.variant as (import('@/types/database.types').ProductVariant & { product: Product }) | null;
+                    const productData = item.product || variantWithProduct?.product;
+                    const productId = productData?.id || item.variant_id || 'unknown';
+                    
+                    const hasReview = reviews.some((review) => 
                         review.order_id === dbOrder.id && 
                         review.product_id === productId
-                     );
+                    );
 
-                     // Map shipping info
-                     const shippingInfo: ShippingInfo | undefined = dbOrder.shipping ? {
-                         receiver_name: dbOrder.shipping.receiver_name,
-                         receiver_phone: dbOrder.shipping.receiver_phone,
-                         receiver_address: dbOrder.shipping.receiver_address,
-                         provider: dbOrder.shipping.provider,
-                         shipping_code: dbOrder.shipping.shipping_code || undefined,
-                         status: dbOrder.shipping.status,
-                     } : undefined;
-
-                     mappedOrders.push({
-                         id: `${dbOrder.id}-${productId}`, // Create unique ID for UI key
-                         orderNumber: dbOrder.id.substring(0, 8).toUpperCase(), 
-                         date: dbOrder.created_at,
-                         status: uiStatus,
-                         dbStatus: dbOrder.order_status, // Keep original status for cancel logic
-                         product: {
-                             id: productId, // Need product ID for review
-                             name: productData?.name || 'Unknown Product',
-                             image: productData?.image || '/images/product-mock.jpg',
-                             price: item.price,
-                             slug: (productData as { slug?: string })?.slug,
-                         },
-                         size: item.variant?.size || '',
-                         color: item.variant?.color || '',
-                         quantity: item.quantity,
-                         deliveryEstimate: dbOrder.shipping?.provider === 'manual' ? 'TBD' : undefined,
-                         totalPrice: dbOrder.total_price,
-                         paymentMethod: dbOrder.payment_method,
-                         paymentStatus: dbOrder.payment_status,
-                         shipping: shippingInfo,
-                         hasReview,
-                     });
+                    return {
+                        productId,
+                        name: productData?.name || 'Unknown Product',
+                        image: productData?.image || '/images/product-mock.jpg',
+                        price: item.price,
+                        size: item.variant?.size || '',
+                        color: item.variant?.color || '',
+                        quantity: item.quantity,
+                        slug: (productData as { slug?: string })?.slug,
+                        hasReview,
+                    };
                 });
+
+                return {
+                    id: dbOrder.id,
+                    orderNumber: dbOrder.id.substring(0, 8).toUpperCase(),
+                    date: dbOrder.created_at,
+                    status: uiStatus,
+                    dbStatus: dbOrder.order_status,
+                    items: orderItems,
+                    totalPrice: dbOrder.total_price,
+                    paymentMethod: dbOrder.payment_method,
+                    paymentStatus: dbOrder.payment_status,
+                    shipping: shippingInfo,
+                };
             });
 
             setOrders(mappedOrders);
@@ -251,15 +255,10 @@ export default function MyOrdersPage() {
     const handleCancelOrder = async () => {
         if (!selectedOrder || !user) return;
         
-        // Extract original order ID from composite key (format: orderId-productId)
-        // If it doesn't contain a hyphen (legacy), use it as is.
-        const originalOrderId = selectedOrder.id.includes('-') 
-            ? selectedOrder.id.split('-')[0] 
-            : selectedOrder.id;
+        const orderId = selectedOrder.id;
 
         console.log('Cancelling order:', {
-            compositeId: selectedOrder.id,
-            originalId: originalOrderId,
+            orderId,
             userId: user.id,
             dbStatus: selectedOrder.dbStatus,
             uiStatus: selectedOrder.status
@@ -268,7 +267,7 @@ export default function MyOrdersPage() {
         setCancellingOrder(true);
         try {
             const { cancelOrder } = await import('@/services/order.service');
-            const { error } = await cancelOrder(originalOrderId, user.id);
+            const { error } = await cancelOrder(orderId, user.id);
             
             if (error) {
                 console.error('Cancel order error details:', error);
@@ -279,14 +278,22 @@ export default function MyOrdersPage() {
                 return;
             }
 
-            // Update local state - Need to update ALL items belonging to this order
+            // Update local state
             setOrders(prev => prev.map(order => 
-                // Check if this item belongs to the cancelled order (matches original ID prefix)
-                order.id.startsWith(originalOrderId)
+                order.id === orderId
                     ? { ...order, status: 'returned' as OrderStatus, dbStatus: 'cancelled' }
                     : order
             ));
             
+            // Send cancellation email (non-blocking)
+            fetch('/api/orders/cancel-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId }),
+            }).catch((err) => {
+                console.warn('Failed to trigger cancel email (non-blocking):', err);
+            });
+
             alert('Đơn hàng đã được hủy thành công!');
             setShowCancelModal(false);
             setSelectedOrder(null);
@@ -301,6 +308,21 @@ export default function MyOrdersPage() {
     // Check if order can be cancelled
     const canCancelOrder = (order: Order) => {
         return ['pending_payment', 'paid', 'processing'].includes(order.dbStatus);
+    };
+
+    // Helper: compute items subtotal
+    const getItemsSubtotal = (items: OrderItem[]) => {
+        return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    };
+
+    const getShippingFee = (order: Order) => {
+        return order.shipping?.shipping_fee || 0;
+    };
+
+    const getTaxAmount = (order: Order) => {
+        const subtotal = getItemsSubtotal(order.items);
+        const shippingFee = getShippingFee(order);
+        return Math.max(0, order.totalPrice - subtotal - shippingFee);
     };
 
     const filteredOrders = useMemo(() => {
@@ -325,6 +347,10 @@ export default function MyOrdersPage() {
     const activeOrders = filteredOrders.filter(o => o.status === 'ordered' || o.status === 'shipped');
     const pastOrders = filteredOrders.filter(o => o.status === 'delivered' || o.status === 'returned');
 
+    // Total items count helper
+    const getTotalItemsCount = (items: OrderItem[]) => {
+        return items.reduce((sum, item) => sum + item.quantity, 0);
+    };
 
     return (
         <div className="container-custom py-10">
@@ -404,105 +430,114 @@ export default function MyOrdersPage() {
 
                     <div className="space-y-6">
                         {activeOrders.map((order) => (
-                            <div key={order.id} className="bg-white border rounded-lg p-6 md:p-8 flex flex-col md:flex-row gap-8">
-                                {/* Product Image */}
-                                <div className="relative aspect-square w-full md:w-48 bg-gray-50 rounded-md overflow-hidden flex-shrink-0">
-                                    <Image
-                                        src={order.product.image}
-                                        alt={order.product.name}
-                                        fill
-                                        sizes="(max-width: 768px) 100vw, 192px"
-                                        className="object-cover"
-                                    />
+                            <div key={order.id} className="bg-white border rounded-lg p-6 md:p-8">
+                                {/* Order Header */}
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className={clsx(
+                                            "text-[10px] font-bold px-2 py-0.5 rounded uppercase",
+                                            order.status === 'shipped' ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"
+                                        )}>
+                                            {order.status}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground font-medium">
+                                            {new Date(order.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                            Order #{order.orderNumber}
+                                        </span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-xl font-bold">${order.totalPrice.toFixed(2)}</span>
+                                        <p className="text-xs text-muted-foreground">{getTotalItemsCount(order.items)} items</p>
+                                    </div>
                                 </div>
 
-                                {/* Order Details & Progress */}
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-start mb-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className={clsx(
-                                                "text-[10px] font-bold px-2 py-0.5 rounded uppercase",
-                                                order.status === 'shipped' ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"
-                                            )}>
-                                                {order.status}
-                                            </span>
-                                            <span className="text-xs text-muted-foreground font-medium">
-                                                {new Date(order.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
-                                            </span>
+                                {/* Items List */}
+                                <div className="space-y-3 mb-6">
+                                    {order.items.map((item, idx) => (
+                                        <div key={idx} className="flex gap-4 p-3 bg-gray-50 rounded-lg">
+                                            <div className="relative h-16 w-14 bg-white rounded overflow-hidden flex-shrink-0">
+                                                <Image
+                                                    src={item.image}
+                                                    alt={item.name}
+                                                    fill
+                                                    sizes="56px"
+                                                    className="object-cover"
+                                                />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-bold text-sm truncate">{item.name}</h4>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Size: {item.size} • Color: {item.color} • Qty: {item.quantity}
+                                                </p>
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                                <span className="font-bold text-sm">${(item.price * item.quantity).toFixed(2)}</span>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
-                                            <span className="text-xl font-bold">${order.product.price.toFixed(2)}</span>
-                                            {order.deliveryEstimate && (
-                                                <p className="text-[10px] text-red-500 font-medium">Est. Delivery {order.deliveryEstimate}</p>
-                                            )}
+                                    ))}
+                                </div>
+
+                                {/* Progress Bar */}
+                                <div className="relative mb-6">
+                                    <div className="h-0.5 w-full bg-gray-200 absolute top-1/2 -translate-y-1/2" />
+                                    <div className={clsx(
+                                        "h-0.5 absolute top-1/2 -translate-y-1/2 bg-red-500 transition-all duration-500",
+                                        order.status === 'ordered' ? "w-0" : "w-2/3"
+                                    )} />
+
+                                    <div className="relative flex justify-between">
+                                        <div className="flex flex-col items-center">
+                                            <div className={clsx("h-3 w-3 rounded-full z-10 transition-colors", order.status === 'ordered' || order.status === 'shipped' ? "bg-red-500" : "bg-gray-300")} />
+                                            <span className={clsx("text-[10px] font-bold mt-2", order.status === 'ordered' || order.status === 'shipped' ? "text-red-500" : "text-gray-400")}>ORDERED</span>
                                         </div>
-                                    </div>
-
-                                    <h3 className="text-xl font-bold mb-1">{order.product.name}</h3>
-                                    <p className="text-xs text-muted-foreground mb-8">
-                                        Order #{order.orderNumber} • Size {order.size} • {order.color}
-                                    </p>
-
-                                    {/* Progress Bar */}
-                                    <div className="relative mt-auto">
-                                        <div className="h-0.5 w-full bg-gray-200 absolute top-1/2 -translate-y-1/2" />
-                                        <div className={clsx(
-                                            "h-0.5 absolute top-1/2 -translate-y-1/2 bg-red-500 transition-all duration-500",
-                                            order.status === 'ordered' ? "w-0" : "w-2/3"
-                                        )} />
-
-                                        <div className="relative flex justify-between">
-                                            <div className="flex flex-col items-center">
-                                                <div className={clsx("h-3 w-3 rounded-full z-10 transition-colors", order.status === 'ordered' || order.status === 'shipped' ? "bg-red-500" : "bg-gray-300")} />
-                                                <span className={clsx("text-[10px] font-bold mt-2", order.status === 'ordered' || order.status === 'shipped' ? "text-red-500" : "text-gray-400")}>ORDERED</span>
-                                            </div>
-                                            <div className="flex flex-col items-center">
-                                                <div className={clsx("h-3 w-3 rounded-full z-10 transition-colors", order.status === 'shipped' ? "bg-red-500" : "bg-gray-300")} />
-                                                <span className={clsx("text-[10px] font-bold mt-2", order.status === 'shipped' ? "text-red-500" : "text-gray-400")}>SHIPPED</span>
-                                            </div>
-                                            <div className="flex flex-col items-center">
-                                                <div className="h-3 w-3 rounded-full bg-gray-300 z-10" />
-                                                <span className="text-[10px] font-bold text-gray-400 mt-2 uppercase">Delivered</span>
-                                            </div>
+                                        <div className="flex flex-col items-center">
+                                            <div className={clsx("h-3 w-3 rounded-full z-10 transition-colors", order.status === 'shipped' ? "bg-red-500" : "bg-gray-300")} />
+                                            <span className={clsx("text-[10px] font-bold mt-2", order.status === 'shipped' ? "text-red-500" : "text-gray-400")}>SHIPPED</span>
+                                        </div>
+                                        <div className="flex flex-col items-center">
+                                            <div className="h-3 w-3 rounded-full bg-gray-300 z-10" />
+                                            <span className="text-[10px] font-bold text-gray-400 mt-2 uppercase">Delivered</span>
                                         </div>
                                     </div>
+                                </div>
 
-                                    {/* Action Buttons */}
-                                    <div className="flex flex-wrap gap-3 mt-8">
-                                        <Button 
-                                            className="bg-black text-white hover:bg-black/90 h-10 px-6 rounded-sm text-xs font-bold"
-                                            onClick={() => {
-                                                setSelectedOrder(order);
-                                                setShowTrackingModal(true);
-                                            }}
-                                        >
-                                            <Truck className="w-4 h-4 mr-2" />
-                                            TRACK PACKAGE
-                                        </Button>
+                                {/* Action Buttons */}
+                                <div className="flex flex-wrap gap-3">
+                                    <Button 
+                                        className="bg-black text-white hover:bg-black/90 h-10 px-6 rounded-sm text-xs font-bold"
+                                        onClick={() => {
+                                            setSelectedOrder(order);
+                                            setShowTrackingModal(true);
+                                        }}
+                                    >
+                                        <Truck className="w-4 h-4 mr-2" />
+                                        TRACK PACKAGE
+                                    </Button>
+                                    <Button 
+                                        variant="outline" 
+                                        className="h-10 px-6 rounded-sm text-xs font-bold border-gray-300"
+                                        onClick={() => {
+                                            setSelectedOrder(order);
+                                            setShowDetailsModal(true);
+                                        }}
+                                    >
+                                        VIEW DETAILS
+                                    </Button>
+                                    {canCancelOrder(order) && (
                                         <Button 
                                             variant="outline" 
-                                            className="h-10 px-6 rounded-sm text-xs font-bold border-gray-300"
+                                            className="h-10 px-6 rounded-sm text-xs font-bold border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
                                             onClick={() => {
                                                 setSelectedOrder(order);
-                                                setShowDetailsModal(true);
+                                                setShowCancelModal(true);
                                             }}
                                         >
-                                            VIEW DETAILS
+                                            <X className="w-4 h-4 mr-2" />
+                                            CANCEL ORDER
                                         </Button>
-                                        {canCancelOrder(order) && (
-                                            <Button 
-                                                variant="outline" 
-                                                className="h-10 px-6 rounded-sm text-xs font-bold border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-                                                onClick={() => {
-                                                    setSelectedOrder(order);
-                                                    setShowCancelModal(true);
-                                                }}
-                                            >
-                                                <X className="w-4 h-4 mr-2" />
-                                                CANCEL ORDER
-                                            </Button>
-                                        )}
-                                    </div>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -516,19 +551,10 @@ export default function MyOrdersPage() {
                     <h2 className="text-xs font-bold uppercase tracking-wider text-gray-600 mb-4">Past Purchases</h2>
                     <div className="space-y-4">
                         {pastOrders.map((order) => (
-                            <div key={order.id} className="bg-white border rounded-lg p-4 flex items-center gap-4">
-                                <div className="relative h-20 w-16 bg-gray-50 rounded overflow-hidden flex-shrink-0">
-                                    <Image
-                                        src={order.product.image}
-                                        alt={order.product.name}
-                                        fill
-                                        sizes="64px"
-                                        className="object-cover"
-                                    />
-                                </div>
-
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
+                            <div key={order.id} className="bg-white border rounded-lg p-4">
+                                {/* Order header row */}
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
                                         <span className={clsx(
                                             "h-1.5 w-1.5 rounded-full",
                                             order.status === 'delivered' ? "bg-emerald-500" : "bg-red-500"
@@ -536,48 +562,76 @@ export default function MyOrdersPage() {
                                         <span className="text-[10px] font-bold text-gray-500 uppercase">
                                             {order.status === 'delivered' ? 'DELIVERED' : 'RETURNED'} {new Date(order.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()}
                                         </span>
+                                        <span className="text-xs text-muted-foreground">
+                                            Order #{order.orderNumber}
+                                        </span>
                                     </div>
-                                    <h4 className="font-bold text-base">{order.product.name}</h4>
-                                    <p className="text-xs text-muted-foreground">
-                                        Order #{order.orderNumber} • {order.quantity} Items • ${order.product.price.toFixed(2)}
-                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-bold">${order.totalPrice.toFixed(2)}</span>
+                                        <Button 
+                                            variant="outline" 
+                                            size="icon" 
+                                            className="h-10 w-10 border-gray-300"
+                                            onClick={() => {
+                                                setSelectedOrder(order);
+                                                setShowDetailsModal(true);
+                                            }}
+                                            title="View Details"
+                                        >
+                                            <Package className="h-4 w-4" />
+                                        </Button>
+                                    </div>
                                 </div>
 
-                                <div className="flex items-center gap-2">
-                                    {order.status === 'delivered' && !order.hasReview && (
-                                        <Button variant="outline" className="h-10 px-4 rounded-sm text-xs font-bold text-red-500 border-red-500 hover:bg-red-50 hover:text-red-600" asChild>
-                                            <Link href={`/write-review/${order.id.includes('-') ? order.id.split('-').slice(0, 5).join('-') : order.id}?productId=${order.product.id}`}>
-                                                <PenLine className="w-3.5 h-3.5 mr-2" />
-                                                WRITE A REVIEW
-                                            </Link>
-                                        </Button>
-                                    )}
-                                    {order.status === 'delivered' && order.hasReview && order.product.slug && (
-                                        <Button variant="outline" className="h-10 px-4 rounded-sm text-xs font-bold border-gray-300" asChild>
-                                            <Link href={`/product/${order.product.slug}#reviews-section`}>
-                                                VIEW REVIEW
-                                            </Link>
-                                        </Button>
-                                    )}
-                                    {order.status === 'returned' && order.dbStatus !== 'cancelled' && (
-                                        <Button variant="outline" className="h-10 px-4 rounded-sm text-xs font-bold border-gray-300">
+                                {/* Items list */}
+                                <div className="space-y-2">
+                                    {order.items.map((item, idx) => (
+                                        <div key={idx} className="flex items-center gap-4">
+                                            <div className="relative h-16 w-12 bg-gray-50 rounded overflow-hidden flex-shrink-0">
+                                                <Image
+                                                    src={item.image}
+                                                    alt={item.name}
+                                                    fill
+                                                    sizes="48px"
+                                                    className="object-cover"
+                                                />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-bold text-sm truncate">{item.name}</h4>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Size: {item.size} • {item.color} • Qty: {item.quantity} • ${(item.price * item.quantity).toFixed(2)}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                {order.status === 'delivered' && !item.hasReview && (
+                                                    <Button variant="outline" className="h-8 px-3 rounded-sm text-xs font-bold text-red-500 border-red-500 hover:bg-red-50 hover:text-red-600" asChild>
+                                                        <Link href={`/write-review/${order.id}?productId=${item.productId}`}>
+                                                            <PenLine className="w-3 h-3 mr-1" />
+                                                            REVIEW
+                                                        </Link>
+                                                    </Button>
+                                                )}
+                                                {order.status === 'delivered' && item.hasReview && item.slug && (
+                                                    <Button variant="outline" className="h-8 px-3 rounded-sm text-xs font-bold border-gray-300" asChild>
+                                                        <Link href={`/product/${item.slug}#reviews-section`}>
+                                                            VIEW REVIEW
+                                                        </Link>
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Buy Again for returned orders */}
+                                {order.status === 'returned' && order.dbStatus !== 'cancelled' && (
+                                    <div className="mt-3 pt-3 border-t">
+                                        <Button variant="outline" className="h-9 px-4 rounded-sm text-xs font-bold border-gray-300">
                                             <RefreshCcw className="w-3.5 h-3.5 mr-2" />
                                             BUY AGAIN
                                         </Button>
-                                    )}
-                                    <Button 
-                                        variant="outline" 
-                                        size="icon" 
-                                        className="h-10 w-10 border-gray-300"
-                                        onClick={() => {
-                                            setSelectedOrder(order);
-                                            setShowDetailsModal(true);
-                                        }}
-                                        title="View Details"
-                                    >
-                                        <Package className="h-4 w-4" />
-                                    </Button>
-                                </div>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -596,7 +650,7 @@ export default function MyOrdersPage() {
 
             {/* Order Details Modal */}
             <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-bold">Order Details</DialogTitle>
                         <DialogDescription>
@@ -606,29 +660,36 @@ export default function MyOrdersPage() {
                     
                     {selectedOrder && (
                         <div className="space-y-4">
-                            {/* Product Info */}
-                            <div className="flex gap-4 p-4 bg-gray-50 rounded-lg">
-                                <div className="relative h-20 w-16 bg-white rounded overflow-hidden flex-shrink-0">
-                                    <Image
-                                        src={selectedOrder.product.image}
-                                        alt={selectedOrder.product.name}
-                                        fill
-                                        sizes="64px"
-                                        className="object-cover"
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <h4 className="font-bold">{selectedOrder.product.name}</h4>
-                                    <p className="text-sm text-muted-foreground">
-                                        Size: {selectedOrder.size} • Color: {selectedOrder.color}
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Qty: {selectedOrder.quantity}
-                                    </p>
-                                </div>
-                                <div className="text-right">
-                                    <span className="font-bold">${selectedOrder.product.price.toFixed(2)}</span>
-                                </div>
+                            {/* All Items */}
+                            <div className="space-y-3">
+                                {selectedOrder.items.map((item, idx) => (
+                                    <div key={idx} className="flex gap-4 p-4 bg-gray-50 rounded-lg">
+                                        <div className="relative h-20 w-16 bg-white rounded overflow-hidden flex-shrink-0">
+                                            <Image
+                                                src={item.image}
+                                                alt={item.name}
+                                                fill
+                                                sizes="64px"
+                                                className="object-cover"
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className="font-bold">{item.name}</h4>
+                                            <p className="text-sm text-muted-foreground">
+                                                Size: {item.size} • Color: {item.color}
+                                            </p>
+                                            <p className="text-sm text-muted-foreground">
+                                                Qty: {item.quantity}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="font-bold">${(item.price * item.quantity).toFixed(2)}</span>
+                                            {item.quantity > 1 && (
+                                                <p className="text-xs text-muted-foreground">${item.price.toFixed(2)} each</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
 
                             {/* Order Info */}
@@ -675,9 +736,9 @@ export default function MyOrdersPage() {
                             </div>
 
                             {/* Shipping Info */}
-                            {selectedOrder.shipping && (
-                                <div className="border-t pt-4">
-                                    <h5 className="font-bold text-sm mb-3">Shipping Information</h5>
+                            <div className="border-t pt-4">
+                                <h5 className="font-bold text-sm mb-3">Shipping Information</h5>
+                                {selectedOrder.shipping ? (
                                     <div className="space-y-2 text-sm">
                                         <div className="flex items-start gap-3">
                                             <User className="w-4 h-4 text-gray-400 mt-0.5" />
@@ -692,13 +753,33 @@ export default function MyOrdersPage() {
                                             <span>{selectedOrder.shipping.receiver_address}</span>
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                ) : (
+                                    <p className="text-sm text-muted-foreground italic">Không có thông tin địa chỉ giao hàng.</p>
+                                )}
+                            </div>
 
-                            {/* Total */}
-                            <div className="border-t pt-4 flex justify-between items-center">
-                                <span className="font-bold">Total</span>
-                                <span className="text-xl font-bold">${selectedOrder.totalPrice.toFixed(2)}</span>
+                            {/* Price Breakdown */}
+                            <div className="border-t pt-4 space-y-2">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground">Subtotal ({getTotalItemsCount(selectedOrder.items)} items)</span>
+                                    <span className="font-medium">${getItemsSubtotal(selectedOrder.items).toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground">Shipping Fee</span>
+                                    <span className="font-medium">
+                                        {getShippingFee(selectedOrder) 
+                                            ? `$${getShippingFee(selectedOrder).toFixed(2)}` 
+                                            : 'Free'}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground">Tax</span>
+                                    <span className="font-medium">${getTaxAmount(selectedOrder).toFixed(2)}</span>
+                                </div>
+                                <div className="border-t pt-2 flex justify-between items-center">
+                                    <span className="font-bold">Total</span>
+                                    <span className="text-xl font-bold">${selectedOrder.totalPrice.toFixed(2)}</span>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -841,24 +922,31 @@ export default function MyOrdersPage() {
                     
                     {selectedOrder && (
                         <div className="space-y-4">
-                            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                                <div className="flex gap-4">
-                                    <div className="relative h-16 w-12 bg-white rounded overflow-hidden flex-shrink-0">
-                                        <Image
-                                            src={selectedOrder.product.image}
-                                            alt={selectedOrder.product.name}
-                                            fill
-                                            sizes="48px"
-                                            className="object-cover"
-                                        />
+                            <div className="p-4 bg-red-50 border border-red-200 rounded-lg space-y-3">
+                                {selectedOrder.items.map((item, idx) => (
+                                    <div key={idx} className="flex gap-3">
+                                        <div className="relative h-14 w-11 bg-white rounded overflow-hidden flex-shrink-0">
+                                            <Image
+                                                src={item.image}
+                                                alt={item.name}
+                                                fill
+                                                sizes="44px"
+                                                className="object-cover"
+                                            />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-sm">{item.name}</h4>
+                                            <p className="text-xs text-muted-foreground">
+                                                Qty: {item.quantity} • ${(item.price * item.quantity).toFixed(2)}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h4 className="font-bold text-sm">{selectedOrder.product.name}</h4>
-                                        <p className="text-xs text-muted-foreground">
-                                            Order #{selectedOrder.orderNumber}
-                                        </p>
-                                        <p className="font-bold mt-1">${selectedOrder.product.price.toFixed(2)}</p>
-                                    </div>
+                                ))}
+                                <div className="border-t pt-2">
+                                    <p className="text-xs text-muted-foreground">
+                                        Order #{selectedOrder.orderNumber}
+                                    </p>
+                                    <p className="font-bold mt-1">${selectedOrder.totalPrice.toFixed(2)}</p>
                                 </div>
                             </div>
 

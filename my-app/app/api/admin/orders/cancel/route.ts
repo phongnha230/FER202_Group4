@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createNotification } from '@/services/notification.service';
 import { restoreStock } from '@/services/inventory.service';
+import { sendOrderEmail } from '@/lib/notifications/send-order-email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -91,6 +92,11 @@ export async function POST(request: NextRequest) {
         'warning'
       );
     }
+
+    // Send cancellation email to customer (non-blocking)
+    sendOrderEmail(orderId, 'order_cancelled_by_admin').catch((err) => {
+      console.warn('Failed to send order cancelled email (non-blocking):', err);
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

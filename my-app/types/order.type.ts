@@ -26,6 +26,7 @@ export interface CreateOrderRequest {
     receiver_name: string;
     receiver_phone: string;
     receiver_address: string;
+    shipping_fee?: number;
   };
 }
 
