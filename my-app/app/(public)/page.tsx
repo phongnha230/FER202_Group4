@@ -1,6 +1,6 @@
 import Hero from '@/components/homepage/Hero';
 import FeaturedCollection from '@/components/homepage/FeaturedCollection';
-import PromoBanner from '@/components/homepage/PromoBanner';
+import WinterDropBanner from '@/components/homepage/WinterDropBanner';
 import StyleInspiration from '@/components/homepage/StyleInspiration';
 
 export default function HomePage() {
@@ -12,33 +12,8 @@ export default function HomePage() {
       {/* Featured Collection */}
       <FeaturedCollection />
 
-      {/* Concrete Jungle Banner */}
-      <PromoBanner
-        collectionNumber="COLLECTION 01"
-        title="CONCRETE"
-        subtitle="JUNGLE"
-        description="Hard-wearing utilitarian pieces designed for the daily grind. Featuring ripstop fabrics and modular pocket systems."
-        image="/banners/concrete-jungle.jpg"
-        ctaText="VIEW COLLECTION"
-        ctaLink="/streetwear"
-        imagePosition="left"
-        theme="dark-teal"
-        imageEntrance="left"
-      />
-
-      {/* Neon Nights Banner */}
-      <PromoBanner
-        collectionNumber="COLLECTION 02"
-        title="NEON"
-        subtitle="NIGHTS"
-        description="Reflective details and cyber-inspired graphics for those who come alive when the sun goes down."
-        image="/banners/neon-nights.jpg"
-        ctaText="VIEW COLLECTION"
-        ctaLink="/new-arrivals"
-        imagePosition="right"
-        theme="light"
-        imageEntrance="right"
-      />
+      {/* Winter Campaign Banner */}
+      <WinterDropBanner />
 
       {/* Style Inspiration */}
       <StyleInspiration />

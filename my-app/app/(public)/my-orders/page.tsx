@@ -69,6 +69,28 @@ interface Product {
     slug?: string;
 }
 
+const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
+
+const formatDateInVietnam = (
+    dateString: string,
+    locale: 'vi-VN' | 'en-US' = 'vi-VN',
+    options: Intl.DateTimeFormatOptions = {}
+) => {
+    // Ensure the date is interpreted as UTC if it doesn't already have time zone info
+    let safeString = dateString;
+    if (!safeString.endsWith('Z') && !safeString.includes('+') && safeString.includes('T')) {
+        safeString += 'Z';
+    }
+    
+    const date = new Date(safeString);
+    if (Number.isNaN(date.getTime())) return 'N/A';
+
+    return new Intl.DateTimeFormat(locale, {
+        timeZone: VIETNAM_TIMEZONE,
+        ...options,
+    }).format(date);
+};
+
 export default function MyOrdersPage() {
     const [activeTab, setActiveTab] = useState<'ALL' | 'ON THE WAY' | 'RETURNS'>('ALL');
     const [selectedYear, setSelectedYear] = useState<string>("all");
@@ -336,7 +358,7 @@ export default function MyOrdersPage() {
 
             // Filter by Year
             if (selectedYear !== 'all') {
-                const orderYear = new Date(order.date).getFullYear().toString();
+                const orderYear = formatDateInVietnam(order.date, 'vi-VN', { year: 'numeric' });
                 if (orderYear !== selectedYear) return false;
             }
 
@@ -441,7 +463,7 @@ export default function MyOrdersPage() {
                                             {order.status}
                                         </span>
                                         <span className="text-xs text-muted-foreground font-medium">
-                                            {new Date(order.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
+                                            {formatDateInVietnam(order.date, 'en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
                                         </span>
                                         <span className="text-xs text-muted-foreground">
                                             Order #{order.orderNumber}
@@ -560,7 +582,7 @@ export default function MyOrdersPage() {
                                             order.status === 'delivered' ? "bg-emerald-500" : "bg-red-500"
                                         )} />
                                         <span className="text-[10px] font-bold text-gray-500 uppercase">
-                                            {order.status === 'delivered' ? 'DELIVERED' : 'RETURNED'} {new Date(order.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()}
+                                            {order.status === 'delivered' ? 'DELIVERED' : 'RETURNED'} {formatDateInVietnam(order.date, 'en-US', { month: 'short', day: 'numeric' }).toUpperCase()}
                                         </span>
                                         <span className="text-xs text-muted-foreground">
                                             Order #{order.orderNumber}
@@ -698,7 +720,7 @@ export default function MyOrdersPage() {
                                     <Calendar className="w-4 h-4 text-gray-400" />
                                     <span className="text-muted-foreground">Order Date:</span>
                                     <span className="font-medium">
-                                        {new Date(selectedOrder.date).toLocaleDateString('vi-VN', {
+                                        {formatDateInVietnam(selectedOrder.date, 'vi-VN', {
                                             day: '2-digit',
                                             month: '2-digit', 
                                             year: 'numeric',
@@ -831,7 +853,7 @@ export default function MyOrdersPage() {
                                         <div>
                                             <p className="font-medium text-sm">Order Placed</p>
                                             <p className="text-xs text-muted-foreground">
-                                                {new Date(selectedOrder.date).toLocaleDateString('vi-VN')}
+                                                {formatDateInVietnam(selectedOrder.date, 'vi-VN')}
                                             </p>
                                         </div>
                                     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import ProductCard from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +19,7 @@ type PriceKey = "all" | "under50" | "50to100" | "100to150" | "over150";
 type SortKey = "newest" | "priceAsc" | "priceDesc" | "nameAsc";
 
 export default function Page() {
+    const searchParams = useSearchParams();
     const [allProducts, setAllProducts] = useState<UIProduct[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -52,6 +54,7 @@ export default function Page() {
         () => Array.from(new Set(allProducts.map((p) => p.category))),
         [allProducts]
     );
+    const requestedCategory = searchParams.get("category");
     const sizes = useMemo(
         () =>
             Array.from(
@@ -104,6 +107,19 @@ export default function Page() {
         setSort("newest");
         setVisible(8);
     };
+
+    useEffect(() => {
+        if (!requestedCategory || categories.length === 0) return;
+
+        const matchedCategory = categories.find(
+            (item) => item.toLowerCase() === requestedCategory.toLowerCase()
+        );
+
+        if (matchedCategory) {
+            setCategory(matchedCategory);
+            setVisible(8);
+        }
+    }, [requestedCategory, categories]);
 
     if (loading) {
         return (

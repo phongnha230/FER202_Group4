@@ -1,4 +1,4 @@
-import { Resend } from 'resend';
+﻿import { Resend } from 'resend';
 
 function getResendClient() {
   const key = process.env.RESEND_API_KEY;
@@ -23,18 +23,82 @@ export interface OrderEmailData {
   cancelledBy?: 'user' | 'admin';
 }
 
-function buildOrderPlacedHtml(data: OrderEmailData): string {
-  const itemsHtml = data.orderItems
+function formatMoney(value: number): string {
+  return `$${value.toFixed(2)}`;
+}
+
+function buildItemsHtml(data: OrderEmailData, borderColor = '#eee') {
+  return data.orderItems
     .map(
       (item) => `
     <tr>
-      <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.productName} (${item.variantInfo})</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.price.toFixed(2)}</td>
+      <td style="padding: 8px; border-bottom: 1px solid ${borderColor};">${item.productName} (${item.variantInfo})</td>
+      <td style="padding: 8px; border-bottom: 1px solid ${borderColor}; text-align: center;">${item.quantity}</td>
+      <td style="padding: 8px; border-bottom: 1px solid ${borderColor}; text-align: right;">${formatMoney(item.price)}</td>
     </tr>
   `
     )
     .join('');
+}
+
+function buildOrderSummaryHtml(params: {
+  subtotal: number;
+  shippingFee: number;
+  taxes?: number;
+  total: number;
+  borderColor?: string;
+  dividerColor?: string;
+  totalLabel?: string;
+  totalColor?: string;
+}) {
+  const {
+    subtotal,
+    shippingFee,
+    taxes,
+    total,
+    borderColor = '#eee',
+    dividerColor = '#eee',
+    totalLabel = 'Tổng cộng',
+    totalColor = '#111827',
+  } = params;
+
+  const shippingText = shippingFee > 0 ? formatMoney(shippingFee) : 'Miễn phí';
+  const taxRow = taxes != null
+    ? `
+      <tr>
+        <td style="padding: 6px 0; font-size: 14px; color: #555;">Thuế</td>
+        <td style="padding: 6px 0; font-size: 14px; color: #555; text-align: right;">${formatMoney(taxes)}</td>
+      </tr>`
+    : '';
+
+  return `
+    <div style="margin-top: 16px; background: white; border-radius: 10px; padding: 14px 16px; border: 1px solid ${borderColor};">
+      <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tbody>
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #555;">Tạm tính</td>
+            <td style="padding: 6px 0; font-size: 14px; color: #555; text-align: right;">${formatMoney(subtotal)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-size: 14px; color: #555;">Phí vận chuyển</td>
+            <td style="padding: 6px 0; font-size: 14px; color: #555; text-align: right;">${shippingText}</td>
+          </tr>
+          ${taxRow}
+          <tr>
+            <td colspan="2" style="padding-top: 10px; border-bottom: 1px solid ${dividerColor};"></td>
+          </tr>
+          <tr>
+            <td style="padding-top: 12px; font-size: 19px; font-weight: 700; color: ${totalColor};">${totalLabel}</td>
+            <td style="padding-top: 12px; font-size: 19px; font-weight: 700; color: ${totalColor}; text-align: right;">${formatMoney(total)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function buildOrderPlacedHtml(data: OrderEmailData): string {
+  const itemsHtml = buildItemsHtml(data);
 
   return `
 <!DOCTYPE html>
@@ -51,7 +115,7 @@ function buildOrderPlacedHtml(data: OrderEmailData): string {
   <div style="background: #f9f9f9; padding: 24px; border: 1px solid #eee; border-top: none; border-radius: 0 0 8px 8px;">
     <p>Xin chào <strong>${data.customerName}</strong>,</p>
     <p>Cảm ơn bạn đã đặt hàng! Chúng tôi đã nhận được đơn hàng của bạn và đang xử lý.</p>
-    
+
     <h3 style="margin-top: 24px;">Chi tiết đơn hàng</h3>
     <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
       <thead>
@@ -63,30 +127,21 @@ function buildOrderPlacedHtml(data: OrderEmailData): string {
       </thead>
       <tbody>${itemsHtml}</tbody>
     </table>
-    
-    <div style="margin-top: 16px; background: white; border-radius: 8px; padding: 12px; border: 1px solid #eee;">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555;">
-        <span>Tạm tính</span>
-        <span>$${(data.itemSubtotal ?? (data.totalPrice - data.shippingFee)).toFixed(2)}</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555;">
-        <span>Phí vận chuyển</span>
-        <span>${data.shippingFee > 0 ? `$$${data.shippingFee.toFixed(2)}` : 'Miễn phí'}</span>
-      </div>
-      ${data.taxes != null ? `<div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555;"><span>Thuế</span><span>$$${data.taxes.toFixed(2)}</span></div>` : ''}
-      <div style="display: flex; justify-content: space-between; padding-top: 8px; border-top: 1px solid #eee; font-size: 18px; font-weight: bold;">
-        <span>Tổng cộng</span>
-        <span>$${data.totalPrice.toFixed(2)}</span>
-      </div>
-    </div>
-    
+
+    ${buildOrderSummaryHtml({
+      subtotal: data.itemSubtotal ?? (data.totalPrice - data.shippingFee),
+      shippingFee: data.shippingFee,
+      taxes: data.taxes,
+      total: data.totalPrice,
+    })}
+
     <h3 style="margin-top: 24px;">Thông tin giao hàng</h3>
     <p><strong>Người nhận:</strong> ${data.receiverName}</p>
     <p><strong>Điện thoại:</strong> ${data.receiverPhone}</p>
     <p><strong>Địa chỉ:</strong> ${data.receiverAddress}</p>
-    
+
     <p style="margin-top: 24px; color: #666; font-size: 14px;">
-      Nếu bạn chọn thanh toán online, vui lòng hoàn tất thanh toán để đơn hàng được xử lý.
+      Nếu bạn chọn thanh toán online, vui lòng hoàn tất thanh toán để đơn hàng được xử lý nhanh hơn.
     </p>
   </div>
 </body>
@@ -95,17 +150,7 @@ function buildOrderPlacedHtml(data: OrderEmailData): string {
 }
 
 function buildOrderSuccessHtml(data: OrderEmailData): string {
-  const itemsHtml = data.orderItems
-    .map(
-      (item) => `
-    <tr>
-      <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.productName} (${item.variantInfo})</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.price.toFixed(2)}</td>
-    </tr>
-  `
-    )
-    .join('');
+  const itemsHtml = buildItemsHtml(data);
 
   return `
 <!DOCTYPE html>
@@ -121,8 +166,8 @@ function buildOrderSuccessHtml(data: OrderEmailData): string {
   </div>
   <div style="background: #f9f9f9; padding: 24px; border: 1px solid #eee; border-top: none; border-radius: 0 0 8px 8px;">
     <p>Xin chào <strong>${data.customerName}</strong>,</p>
-    <p>Đơn hàng của bạn đã được thanh toán thành công. Chúng tôi sẽ bắt đầu chuẩn bị và giao hàng sớm nhất.</p>
-    
+    <p>Đơn hàng của bạn đã được thanh toán thành công. Chúng tôi sẽ chuẩn bị và giao hàng sớm nhất.</p>
+
     <h3 style="margin-top: 24px;">Chi tiết đơn hàng</h3>
     <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
       <thead>
@@ -134,28 +179,138 @@ function buildOrderSuccessHtml(data: OrderEmailData): string {
       </thead>
       <tbody>${itemsHtml}</tbody>
     </table>
-    
-    <div style="margin-top: 16px; background: white; border-radius: 8px; padding: 12px; border: 1px solid #eee;">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555;">
-        <span>Tạm tính</span>
-        <span>$${(data.itemSubtotal ?? (data.totalPrice - data.shippingFee)).toFixed(2)}</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555;">
-        <span>Phí vận chuyển</span>
-        <span>${data.shippingFee > 0 ? `$$${data.shippingFee.toFixed(2)}` : 'Miễn phí'}</span>
-      </div>
-      ${data.taxes != null ? `<div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555;"><span>Thuế</span><span>$$${data.taxes.toFixed(2)}</span></div>` : ''}
-      <div style="display: flex; justify-content: space-between; padding-top: 8px; border-top: 1px solid #eee; font-size: 18px; font-weight: bold;">
-        <span>Tổng cộng</span>
-        <span>$${data.totalPrice.toFixed(2)}</span>
-      </div>
-    </div>
-    
+
+    ${buildOrderSummaryHtml({
+      subtotal: data.itemSubtotal ?? (data.totalPrice - data.shippingFee),
+      shippingFee: data.shippingFee,
+      taxes: data.taxes,
+      total: data.totalPrice,
+    })}
+
     <h3 style="margin-top: 24px;">Địa chỉ giao hàng</h3>
     <p><strong>${data.receiverName}</strong><br>${data.receiverPhone}<br>${data.receiverAddress}</p>
-    
+
     <p style="margin-top: 24px; color: #666; font-size: 14px;">
       Cảm ơn bạn đã mua sắm! Chúc bạn có trải nghiệm tuyệt vời với sản phẩm.
+    </p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+function buildOrderDeliveredHtml(data: OrderEmailData): string {
+  const itemsHtml = buildItemsHtml(data);
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0;">
+    <div style="font-size: 48px; margin-bottom: 8px;">✅</div>
+    <h1 style="margin: 0; font-size: 24px;">Đơn hàng đã giao thành công!</h1>
+    <p style="margin: 8px 0 0 0; opacity: 0.9;">Mã đơn hàng: <strong>${data.orderId.slice(0, 8).toUpperCase()}</strong></p>
+  </div>
+  <div style="background: #f9f9f9; padding: 24px; border: 1px solid #eee; border-top: none; border-radius: 0 0 8px 8px;">
+    <p>Xin chào <strong>${data.customerName}</strong>,</p>
+    <p>Tuyệt vời! Đơn hàng của bạn đã được giao đến địa chỉ nhận hàng thành công. Chúng tôi hy vọng bạn hài lòng với sản phẩm! 🎉</p>
+
+    <h3 style="margin-top: 24px;">Chi tiết đơn hàng</h3>
+    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+      <thead>
+        <tr style="background: #f0f0f0;">
+          <th style="padding: 12px; text-align: left;">Sản phẩm</th>
+          <th style="padding: 12px; text-align: center;">SL</th>
+          <th style="padding: 12px; text-align: right;">Giá</th>
+        </tr>
+      </thead>
+      <tbody>${itemsHtml}</tbody>
+    </table>
+
+    ${buildOrderSummaryHtml({
+      subtotal: data.itemSubtotal ?? (data.totalPrice - data.shippingFee),
+      shippingFee: data.shippingFee,
+      taxes: data.taxes,
+      total: data.totalPrice,
+    })}
+
+    <h3 style="margin-top: 24px;">Địa chỉ giao hàng</h3>
+    <p><strong>${data.receiverName}</strong><br>${data.receiverPhone}<br>${data.receiverAddress}</p>
+
+    <div style="margin-top: 24px; padding: 16px; background: #ecfdf5; border-left: 4px solid #16a34a; border-radius: 4px;">
+      <p style="margin: 0; color: #15803d; font-weight: bold;">Bạn có hài lòng với đơn hàng không?</p>
+      <p style="margin: 8px 0 0 0; color: #166534; font-size: 14px;">Hãy để lại đánh giá để giúp chúng tôi cải thiện dịch vụ tốt hơn nhé!</p>
+    </div>
+
+    <p style="margin-top: 24px; color: #666; font-size: 14px;">
+      Cảm ơn bạn đã tin tưởng và mua sắm tại shop của chúng tôi. Hẹn gặp lại! 👋
+    </p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+function buildOrderCancelledHtml(data: OrderEmailData): string {
+  const cancelledByAdmin = data.cancelledBy === 'admin';
+  const itemsHtml = buildItemsHtml(data, '#fecaca');
+  const subtotal = data.totalPrice - data.shippingFee;
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0;">
+    <div style="font-size: 48px; margin-bottom: 8px;">❌</div>
+    <h1 style="margin: 0; font-size: 24px;">Đơn hàng đã bị hủy</h1>
+    <p style="margin: 8px 0 0 0; opacity: 0.9;">Mã đơn hàng: <strong>${data.orderId.slice(0, 8).toUpperCase()}</strong></p>
+  </div>
+  <div style="background: #fff5f5; padding: 24px; border: 1px solid #fecaca; border-top: none; border-radius: 0 0 8px 8px;">
+    <p>Xin chào <strong>${data.customerName}</strong>,</p>
+    <p>${cancelledByAdmin
+      ? 'Đơn hàng của bạn đã bị hủy bởi <strong>quản trị viên</strong>. Nếu bạn có thắc mắc, vui lòng liên hệ với chúng tôi để được hỗ trợ.'
+      : 'Đơn hàng của bạn đã được hủy thành công theo yêu cầu của bạn.'}
+    </p>
+
+    <h3 style="margin-top: 24px; color: #b91c1c;">Chi tiết đơn hàng bị hủy</h3>
+    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; border: 1px solid #fecaca;">
+      <thead>
+        <tr style="background: #fef2f2;">
+          <th style="padding: 12px; text-align: left; color: #b91c1c;">Sản phẩm</th>
+          <th style="padding: 12px; text-align: center; color: #b91c1c;">SL</th>
+          <th style="padding: 12px; text-align: right; color: #b91c1c;">Giá</th>
+        </tr>
+      </thead>
+      <tbody>${itemsHtml}</tbody>
+    </table>
+
+    ${buildOrderSummaryHtml({
+      subtotal,
+      shippingFee: data.shippingFee,
+      taxes: data.taxes,
+      total: data.totalPrice,
+      borderColor: '#fecaca',
+      dividerColor: '#fecaca',
+      totalLabel: 'Tổng đơn hàng',
+      totalColor: '#b91c1c',
+    })}
+
+    ${data.totalPrice > 0 ? `
+    <div style="margin-top: 20px; padding: 16px; background: #fef9c3; border-left: 4px solid #ca8a04; border-radius: 4px;">
+      <p style="margin: 0; color: #854d0e; font-weight: bold;">Thông tin hoàn tiền</p>
+      <p style="margin: 8px 0 0 0; color: #713f12; font-size: 14px;">Nếu bạn đã thanh toán, số tiền <strong>${formatMoney(data.totalPrice)}</strong> sẽ được hoàn trả trong vòng 3-5 ngày làm việc.</p>
+    </div>` : ''}
+
+    <p style="margin-top: 24px; color: #666; font-size: 14px;">
+      Cảm ơn bạn đã mua sắm tại shop của chúng tôi. Chúng tôi mong được phục vụ bạn trong lần tới! 🙏
     </p>
   </div>
 </body>
@@ -215,81 +370,6 @@ export async function sendOrderSuccessEmail(data: OrderEmailData): Promise<{ suc
   }
 }
 
-function buildOrderDeliveredHtml(data: OrderEmailData): string {
-  const itemsHtml = data.orderItems
-    .map(
-      (item) => `
-    <tr>
-      <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.productName} (${item.variantInfo})</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.price.toFixed(2)}</td>
-    </tr>
-  `
-    )
-    .join('');
-
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0;">
-    <div style="font-size: 48px; margin-bottom: 8px;">✅</div>
-    <h1 style="margin: 0; font-size: 24px;">Đơn hàng đã giao thành công!</h1>
-    <p style="margin: 8px 0 0 0; opacity: 0.9;">Mã đơn hàng: <strong>${data.orderId.slice(0, 8).toUpperCase()}</strong></p>
-  </div>
-  <div style="background: #f9f9f9; padding: 24px; border: 1px solid #eee; border-top: none; border-radius: 0 0 8px 8px;">
-    <p>Xin chào <strong>${data.customerName}</strong>,</p>
-    <p>Tuyệt vời! Đơn hàng của bạn đã được giao đến địa chỉ nhận hàng thành công. Chúng tôi hy vọng bạn hài lòng với sản phẩm! 🎉</p>
-
-    <h3 style="margin-top: 24px;">Chi tiết đơn hàng</h3>
-    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
-      <thead>
-        <tr style="background: #f0f0f0;">
-          <th style="padding: 12px; text-align: left;">Sản phẩm</th>
-          <th style="padding: 12px; text-align: center;">SL</th>
-          <th style="padding: 12px; text-align: right;">Giá</th>
-        </tr>
-      </thead>
-      <tbody>${itemsHtml}</tbody>
-    </table>
-
-    <div style="margin-top: 16px; background: white; border-radius: 8px; padding: 12px; border: 1px solid #eee;">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555;">
-        <span>Tạm tính</span>
-        <span>$${(data.itemSubtotal ?? (data.totalPrice - data.shippingFee)).toFixed(2)}</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555;">
-        <span>Phí vận chuyển</span>
-        <span>${data.shippingFee > 0 ? `$$${data.shippingFee.toFixed(2)}` : 'Miễn phí'}</span>
-      </div>
-      ${data.taxes != null ? `<div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555;"><span>Thuế</span><span>$$${data.taxes.toFixed(2)}</span></div>` : ''}
-      <div style="display: flex; justify-content: space-between; padding-top: 8px; border-top: 1px solid #eee; font-size: 18px; font-weight: bold;">
-        <span>Tổng cộng</span>
-        <span>$${data.totalPrice.toFixed(2)}</span>
-      </div>
-    </div>
-
-    <h3 style="margin-top: 24px;">Địa chỉ giao hàng</h3>
-    <p><strong>${data.receiverName}</strong><br>${data.receiverPhone}<br>${data.receiverAddress}</p>
-
-    <div style="margin-top: 24px; padding: 16px; background: #ecfdf5; border-left: 4px solid #16a34a; border-radius: 4px;">
-      <p style="margin: 0; color: #15803d; font-weight: bold;">Bạn có hài lòng với đơn hàng không?</p>
-      <p style="margin: 8px 0 0 0; color: #166534; font-size: 14px;">Hãy để lại đánh giá để giúp chúng tôi cải thiện dịch vụ tốt hơn nhé!</p>
-    </div>
-
-    <p style="margin-top: 24px; color: #666; font-size: 14px;">
-      Cảm ơn bạn đã tin tưởng và mua sắm tại Shop chúng tôi. Hẹn gặp lại! 👋
-    </p>
-  </div>
-</body>
-</html>
-  `.trim();
-}
-
 export async function sendOrderDeliveredEmail(data: OrderEmailData): Promise<{ success: boolean; error?: string }> {
   const resend = getResendClient();
   if (!resend) {
@@ -314,86 +394,6 @@ export async function sendOrderDeliveredEmail(data: OrderEmailData): Promise<{ s
     console.error('Order delivered email error:', err);
     return { success: false, error: (err as Error).message };
   }
-}
-
-function buildOrderCancelledHtml(data: OrderEmailData): string {
-  const cancelledByAdmin = data.cancelledBy === 'admin';
-  const itemsHtml = data.orderItems
-    .map(
-      (item) => `
-    <tr>
-      <td style="padding: 8px; border-bottom: 1px solid #fecaca;">${item.productName} (${item.variantInfo})</td>
-      <td style="padding: 8px; border-bottom: 1px solid #fecaca; text-align: center;">${item.quantity}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #fecaca; text-align: right;">$${item.price.toFixed(2)}</td>
-    </tr>
-  `
-    )
-    .join('');
-
-  const subtotal = data.totalPrice - data.shippingFee;
-  const shippingText = data.shippingFee > 0 ? `$${data.shippingFee.toFixed(2)}` : 'Miễn phí';
-
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0;">
-    <div style="font-size: 48px; margin-bottom: 8px;">❌</div>
-    <h1 style="margin: 0; font-size: 24px;">Đơn hàng đã bị hủy</h1>
-    <p style="margin: 8px 0 0 0; opacity: 0.9;">Mã đơn hàng: <strong>${data.orderId.slice(0, 8).toUpperCase()}</strong></p>
-  </div>
-  <div style="background: #fff5f5; padding: 24px; border: 1px solid #fecaca; border-top: none; border-radius: 0 0 8px 8px;">
-    <p>Xin chào <strong>${data.customerName}</strong>,</p>
-    <p>${cancelledByAdmin
-      ? 'Đơn hàng của bạn đã bị hủy bởi <strong>quản trị viên</strong>. Nếu bạn có thắc mắc, vui lòng liên hệ với chúng tôi để được hỗ trợ.'
-      : 'Đơn hàng của bạn đã được hủy thành công theo yêu cầu của bạn.'}
-    </p>
-
-    <h3 style="margin-top: 24px; color: #b91c1c;">Chi tiết đơn hàng bị hủy</h3>
-    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; border: 1px solid #fecaca;">
-      <thead>
-        <tr style="background: #fef2f2;">
-          <th style="padding: 12px; text-align: left; color: #b91c1c;">Sản phẩm</th>
-          <th style="padding: 12px; text-align: center; color: #b91c1c;">SL</th>
-          <th style="padding: 12px; text-align: right; color: #b91c1c;">Giá</th>
-        </tr>
-      </thead>
-      <tbody>${itemsHtml}</tbody>
-    </table>
-
-    <div style="margin-top: 16px; background: white; border-radius: 8px; padding: 12px; border: 1px solid #fecaca;">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555;">
-        <span>Tạm tính</span>
-        <span>$${subtotal.toFixed(2)}</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555;">
-        <span>Phí vận chuyển</span>
-        <span>${shippingText}</span>
-      </div>
-      ${data.taxes != null ? `<div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #555;"><span>Thuế</span><span>$$${data.taxes.toFixed(2)}</span></div>` : ''}
-      <div style="display: flex; justify-content: space-between; padding-top: 8px; border-top: 1px solid #fecaca; font-size: 18px; font-weight: bold; color: #b91c1c;">
-        <span>Tổng đơn hàng</span>
-        <span>$${data.totalPrice.toFixed(2)}</span>
-      </div>
-    </div>
-
-    ${data.totalPrice > 0 ? `
-    <div style="margin-top: 20px; padding: 16px; background: #fef9c3; border-left: 4px solid #ca8a04; border-radius: 4px;">
-      <p style="margin: 0; color: #854d0e; font-weight: bold;">Thông tin hoàn tiền</p>
-      <p style="margin: 8px 0 0 0; color: #713f12; font-size: 14px;">Nếu bạn đã thanh toán, số tiền <strong>$${data.totalPrice.toFixed(2)}</strong> sẽ được hoàn trả trong vòng 3–5 ngày làm việc.</p>
-    </div>` : ''}
-
-    <p style="margin-top: 24px; color: #666; font-size: 14px;">
-      Cảm ơn bạn đã mua sắm tại Shop chúng tôi. Chúng tôi mong được phục vụ bạn trong lần tới! 🙏
-    </p>
-  </div>
-</body>
-</html>
-  `.trim();
 }
 
 export async function sendOrderCancelledEmail(data: OrderEmailData): Promise<{ success: boolean; error?: string }> {

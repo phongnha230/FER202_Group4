@@ -193,6 +193,23 @@ const getAvatarColor = (name: string) => {
     return colors[index];
 };
 
+const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
+
+const formatOrderDateTimeVN = (dateString: string) => {
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return 'N/A';
+
+    return new Intl.DateTimeFormat('vi-VN', {
+        timeZone: VIETNAM_TIMEZONE,
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    }).format(date);
+};
+
 export default function OrdersPage() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
@@ -300,11 +317,7 @@ export default function OrdersPage() {
                 id: order.id,
                 customer_name: order.profiles?.full_name || 'Unknown Customer',
                 customer_email: '',
-                date: new Date(order.created_at).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                }),
+                date: formatOrderDateTimeVN(order.created_at),
                 total: order.total_price,
                 status: order.order_status,
                 payment_status: order.payment_status,
@@ -688,11 +701,7 @@ export default function OrdersPage() {
                                 <div>
                                     <p className="text-sm text-slate-500">Date</p>
                                     <p className="text-sm font-medium text-slate-700 mt-1">
-                                        {new Date(selectedOrder.created_at).toLocaleDateString('en-US', {
-                                            month: 'short',
-                                            day: 'numeric',
-                                            year: 'numeric'
-                                        })}
+                                        {formatOrderDateTimeVN(selectedOrder.created_at)}
                                     </p>
                                 </div>
                             </div>

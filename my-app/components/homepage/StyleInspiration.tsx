@@ -1,76 +1,143 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import BlurText from '@/components/ui/BlurText';
-import ClickSpark from '@/components/ui/ClickSpark';
+import { createClient } from '@/lib/supabase/server';
+import { adaptProductsToUI } from '@/lib/adapters/product.adapter';
 
-export default function StyleInspiration() {
+async function getStyleProducts(limit = 7) {
+    const supabase = await createClient();
+
+    const baseSelect = `
+        *,
+        category:categories(id, name),
+        variants:product_variants(*),
+        images:product_images(*)
+    `;
+
+    const featuredQuery = await supabase
+        .from('products')
+        .select(baseSelect)
+        .eq('status', 'active')
+        .eq('featured', true)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+    if (featuredQuery.error) {
+        return { data: [], error: featuredQuery.error };
+    }
+
+    let products = featuredQuery.data || [];
+
+    if (products.length < limit) {
+        const fallback = supabase
+            .from('products')
+            .select(baseSelect)
+            .eq('status', 'active')
+            .order('created_at', { ascending: false })
+            .limit(limit * 2);
+
+        const fallbackQuery = await fallback;
+        if (!fallbackQuery.error && fallbackQuery.data) {
+            const deduped = new Map<string, (typeof fallbackQuery.data)[number]>();
+            [...products, ...fallbackQuery.data].forEach((item) => {
+                deduped.set(item.id, item);
+            });
+            products = Array.from(deduped.values()).slice(0, limit);
+        }
+    }
+
+    return { data: products, error: null };
+}
+
+function formatPrice(price?: number) {
+    if (typeof price !== 'number') return 'N/A';
+    return `$${price.toFixed(2)}`;
+}
+
+export default async function StyleInspiration() {
+    const { data, error } = await getStyleProducts(7);
+
+    if (error) {
+        console.error('Error loading style products:', error);
+        return null;
+    }
+
+    const products = adaptProductsToUI(data).filter((p) => p.slug && p.image);
+
+    if (products.length === 0) {
+        return null;
+    }
+
+    const [mainProduct, ...sideProducts] = products;
+
     return (
-        <section className="relative">
-            {/* Hero Image Section */}
-            <div className="relative">
-                {/* Main Image Container */}
-                <div className="relative aspect-[16/10] md:aspect-[16/9] lg:aspect-[21/9]">
-                    {/* Background Image */}
-                    <Image
-                        src="/banners/style-inspiration.jpg"
-                        alt="Group of people in streetwear fashion"
-                        fill
-                        sizes="100vw"
-                        className="object-cover object-center"
-                        priority
-                    />
-
-                    {/* Dark Gradient Overlay from bottom */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0d1b2a] via-[#0d1b2a]/60 to-transparent" />
-
-                    {/* Content Overlay - Centered */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 z-10">
-                        {/* Main Heading */}
-                        <div className="flex flex-wrap justify-center gap-x-3 md:gap-x-5 mb-6 md:mb-8 text-4xl md:text-6xl lg:text-8xl font-extrabold text-white tracking-tight drop-shadow-lg">
-                            <BlurText 
-                                text="STYLE" 
-                                className="italic font-bold" 
-                                delay={100} 
-                                animateBy="letters" 
-                            />
-                            <BlurText 
-                                text="INSPIRATION" 
-                                className="font-extrabold" 
-                                delay={300} 
-                                animateBy="letters" 
-                            />
-                        </div>
-
-                        {/* CTA Button */}
-                        <div className="relative overflow-hidden rounded">
-                            <ClickSpark
-                                sparkColor="#22d3ee" // Cyan-400 to match button
-                                sparkSize={12}
-                                sparkRadius={25}
-                                sparkCount={12}
-                                duration={500}
-                            >
-                                <Button
-                                    asChild
-                                    size="lg"
-                                    className="bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold px-8 py-3 rounded uppercase tracking-wider relative z-10"
-                                >
-                                    <Link href="/lookbook">
-                                        GET THE LOOK
-                                    </Link>
-                                </Button>
-                            </ClickSpark>
-                        </div>
+        <section className="bg-[#f2f2f0] py-14 md:py-18 lg:py-20">
+            <div className="container-custom">
+                <div className="mb-7 flex items-end justify-between gap-4">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Style Selection</p>
+                        <h2 className="mt-2 text-3xl font-black uppercase tracking-tight text-slate-950 md:text-4xl">Shop The Look</h2>
                     </div>
+                    <Link
+                        href="/streetwear"
+                        className="text-sm font-semibold uppercase tracking-wide text-slate-800 transition hover:text-black"
+                    >
+                        View all
+                    </Link>
+                </div>
 
-                    {/* Floating Badge on Right */}
-                    <div className="absolute bottom-1/4 right-6 md:right-12">
-                        <div className="w-8 h-8 md:w-10 md:h-10 bg-cyan-500 rounded-full flex items-center justify-center">
-                            <svg className="w-4 h-4 md:w-5 md:h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
-                            </svg>
+                <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-[0.95fr_1.05fr] md:gap-5">
+                    <Link
+                        href={`/product/${mainProduct.slug}`}
+                        className="group block overflow-hidden rounded-[20px] border border-slate-300/80 bg-white shadow-[0_10px_28px_rgba(15,23,42,0.06)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_36px_rgba(15,23,42,0.12)] md:grid md:h-full md:grid-rows-[1fr_auto]"
+                    >
+                        <div className="relative min-h-[300px] bg-gradient-to-b from-slate-100 to-slate-200 md:min-h-0">
+                            <Image
+                                src={mainProduct.image}
+                                alt={mainProduct.name}
+                                fill
+                                sizes="(max-width: 1024px) 100vw, 56vw"
+                                className="object-contain p-6 transition-transform duration-500 group-hover:scale-[1.04]"
+                            />
+                            <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                                {mainProduct.category || 'Streetwear'}
+                            </span>
                         </div>
+                        <div className="border-t border-slate-200 px-6 py-5">
+                            <p className="line-clamp-2 text-2xl font-semibold leading-tight text-slate-950">{mainProduct.name}</p>
+                            <div className="mt-3 flex items-center justify-between gap-4">
+                                <p className="text-lg font-bold text-slate-900">{formatPrice(mainProduct.salePrice ?? mainProduct.price)}</p>
+                                <span className="inline-flex rounded-full bg-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white transition group-hover:bg-slate-800">
+                                    View product
+                                </span>
+                            </div>
+                        </div>
+                    </Link>
+
+                    <div className="grid h-full auto-rows-fr content-start items-stretch grid-cols-2 gap-4 self-start xl:grid-cols-3">
+                        {sideProducts.slice(0, 6).map((product) => (
+                            <Link
+                                key={product.id}
+                                href={`/product/${product.slug}`}
+                                className="group block h-full rounded-2xl border border-slate-300/80 bg-white p-3 shadow-[0_8px_22px_rgba(15,23,42,0.05)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_14px_30px_rgba(15,23,42,0.11)]"
+                            >
+                                <div className="relative min-h-[150px] overflow-hidden rounded-xl bg-gradient-to-b from-slate-100 to-slate-200">
+                                    <Image
+                                        src={product.image}
+                                        alt={product.name}
+                                        fill
+                                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 18vw"
+                                        className="object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+                                    />
+                                </div>
+                                <div className="pt-3.5">
+                                    <p className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900">{product.name}</p>
+                                    <p className="mt-1.5 text-sm font-bold text-slate-900">{formatPrice(product.salePrice ?? product.price)}</p>
+                                    <span className="mt-2.5 inline-flex rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-800 transition group-hover:bg-slate-900 group-hover:text-white">
+                                        Add to cart
+                                    </span>
+                                </div>
+                            </Link>
+                        ))}
                     </div>
                 </div>
             </div>
