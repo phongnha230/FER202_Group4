@@ -240,7 +240,7 @@ export default function InventoryPage() {
 
             const inventoryItems: InventoryItem[] = (products || []).map(product => {
                 const variants = product.product_variants || [];
-                const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+                const totalStock = variants.reduce((sum: number, v: { stock?: number }) => sum + (v.stock || 0), 0);
                 let status: 'ok' | 'low_stock' | 'out_of_stock' = 'ok';
                 if (totalStock === 0) status = 'out_of_stock';
                 else if (totalStock < 20) status = 'low_stock';
@@ -250,9 +250,9 @@ export default function InventoryPage() {
                     sku: `UN-${product.slug?.substring(0, 6).toUpperCase() || product.id.substring(0, 6).toUpperCase()}`,
                     name: product.name,
                     image: product.image,
-                    category: (product.category as any)?.name || 'Uncategorized',
+                    category: (product.category as { name?: string })?.name || 'Uncategorized',
                     totalStock,
-                    variants: variants.map((v: any) => ({
+                    variants: variants.map((v: { id: string; size: string; color: string; stock: number; price: number }) => ({
                         id: v.id,
                         size: v.size,
                         color: v.color,
