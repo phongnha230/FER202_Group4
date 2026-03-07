@@ -123,18 +123,22 @@ export default function DashboardPage() {
 
                 // Load low-stock data in background so the dashboard renders sooner.
                 setLowStockLoading(true);
-                supabase
-                    .from('products')
-                    .select(`
-                        id,
-                        name,
-                        image,
-                        product_variants (
-                            stock
-                        )
-                    `)
-                    .eq('status', 'active')
-                    .then(({ data: productsWithVariants }) => {
+                const loadLowStock = async () => {
+                    try {
+                        const { data: productsWithVariants, error } = await supabase
+                            .from('products')
+                            .select(`
+                                id,
+                                name,
+                                image,
+                                product_variants (
+                                    stock
+                                )
+                            `)
+                            .eq('status', 'active');
+                            
+                        if (error) throw error;
+
                         if (!productsWithVariants) {
                             setLowStockProducts([]);
                             return;
@@ -159,13 +163,14 @@ export default function DashboardPage() {
                             .slice(0, 4);
 
                         setLowStockProducts(lowStock);
-                    })
-                    .catch((error) => {
+                    } catch (error) {
                         console.error('Error loading low stock data:', error);
-                    })
-                    .finally(() => {
+                    } finally {
                         setLowStockLoading(false);
-                    });
+                    }
+                };
+                
+                loadLowStock();
 
             } catch (error) {
                 console.error('Error loading dashboard data:', error);

@@ -298,8 +298,8 @@ export async function getOrder(orderId: string): Promise<{ data: OrderWithDetail
       variant: item.variant,
       product: item.variant?.product,
     })),
-    shipping: toSingle(rawOrder.shipping),
-    payment: toSingle(rawOrder.payment),
+    shipping: toSingle(rawOrder.shipping) ?? undefined,
+    payment: toSingle(rawOrder.payment) ?? undefined,
   };
 
   return { data: transformedOrder, error: null };
@@ -368,8 +368,8 @@ export async function getUserOrders(
         variant: item.variant,
         product: item.variant?.product,
       })),
-      shipping: toSingle(typedOrder.shipping),
-      payment: toSingle(typedOrder.payment),
+      shipping: toSingle(typedOrder.shipping) ?? undefined,
+      payment: toSingle(typedOrder.payment) ?? undefined,
     };
   });
 

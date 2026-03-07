@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import ProductCard from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { Loader2 } from "lucide-react";
 type PriceKey = "all" | "under50" | "50to100" | "100to150" | "over150";
 type SortKey = "newest" | "priceAsc" | "priceDesc" | "nameAsc";
 
-export default function Page() {
+function StreetwearContent() {
     const searchParams = useSearchParams();
     const [allProducts, setAllProducts] = useState<UIProduct[]>([]);
     const [loading, setLoading] = useState(true);
@@ -263,5 +263,21 @@ export default function Page() {
                 )}
             </div>
         </main>
+    );
+}
+
+export default function Page() {
+    return (
+        <Suspense fallback={
+            <main className="py-10 md:py-12">
+                <div className="container-custom page-container">
+                    <div className="flex items-center justify-center min-h-[400px]">
+                        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                    </div>
+                </div>
+            </main>
+        }>
+            <StreetwearContent />
+        </Suspense>
     );
 }
