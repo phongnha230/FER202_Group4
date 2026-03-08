@@ -51,7 +51,7 @@ export function Sidebar() {
     const pathname = usePathname();
 
     return (
-        <div className="flex h-screen w-64 flex-col border-r bg-white text-slate-800">
+        <aside className="fixed inset-y-0 left-0 z-40 flex h-screen w-64 flex-col border-r bg-white text-slate-800">
             <div className="flex h-16 items-center border-b px-6">
                 <Link href="/admin/dashboard" className="flex items-center gap-2 font-bold text-xl text-blue-600">
                     <Layers className="h-6 w-6" />
@@ -95,6 +95,6 @@ export function Sidebar() {
                     Sign Out
                 </Button>
             </div>
-        </div>
+        </aside>
     );
 }

@@ -21,7 +21,7 @@ export function Header() {
     };
 
     return (
-        <header className="flex h-16 w-full items-center justify-between border-b bg-white px-6">
+        <header className="fixed left-64 right-0 top-0 z-30 flex h-16 items-center justify-between border-b bg-white/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-white/90">
             <div className="flex w-full max-w-sm items-center gap-2">
                 <div className="relative w-full">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
