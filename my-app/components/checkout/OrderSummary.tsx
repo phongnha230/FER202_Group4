@@ -12,6 +12,7 @@ import { initializePayment } from '@/services/payment.service';
 import { getColorFilter } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CartItemWithProduct } from '@/types/cart.type';
 
 // Type for Buy Now item from sessionStorage
 interface BuyNowItem {
@@ -24,6 +25,15 @@ interface BuyNowItem {
     variant_size: string;
     variant_price: number;
     quantity: number;
+}
+
+function getCartItemImage(item: CartItemWithProduct) {
+    return (
+        item.product?.images?.find((image) => image.is_main)?.image_url ||
+        item.product?.images?.[0]?.image_url ||
+        item.product?.image ||
+        '/products/white-tee.jpg'
+    );
 }
 
 export default function OrderSummary() {
@@ -307,20 +317,19 @@ export default function OrderSummary() {
                             cartItems.map((item) => (
                                 <div key={item.id} className="flex gap-4">
                                     <div className="relative w-16 h-16 bg-white rounded-md border border-gray-200 overflow-hidden shrink-0">
-                                        {item.product?.images?.[0]?.image_url && (
-                                            <Image
-                                                src={item.product.images[0].image_url}
-                                                alt={item.product.name || 'Product'}
-                                                fill
-                                                sizes="64px"
-                                                className="object-cover"
-                                                style={
-                                                    item.variant?.color 
-                                                        ? getColorFilter(item.variant.color, item.variant.color)
-                                                        : undefined
-                                                }
-                                            />
-                                        )}
+                                        {/* Prefer joined product_images, then fallback to the product.image column */}
+                                        <Image
+                                            src={getCartItemImage(item)}
+                                            alt={item.product?.name || 'Product'}
+                                            fill
+                                            sizes="64px"
+                                            className="object-cover"
+                                            style={
+                                                item.variant?.color 
+                                                    ? getColorFilter(item.variant.color, item.variant.color)
+                                                    : undefined
+                                            }
+                                        />
                                         <span className="absolute top-0 right-0 bg-gray-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-bl-md">
                                             {item.quantity}
                                         </span>
