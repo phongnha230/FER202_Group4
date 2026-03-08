@@ -265,7 +265,7 @@ export default function AdminReviewsPage() {
                                 filteredReviews.map((review) => {
                                     const canOpenStorefront = review.product?.slug && review.product.status === "active";
                                     const reviewLink = canOpenStorefront
-                                        ? `/product/${review.product.slug}#review-${review.id}`
+                                        ? `/product/${review.product?.slug}#review-${review.id}`
                                         : null;
                                     const productLink = canOpenStorefront
                                         ? `/product/${review.product?.slug}`
