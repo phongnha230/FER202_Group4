@@ -177,8 +177,8 @@ export default function Page() {
                         <SelectContent>
                             <SelectItem value="all">Price: All</SelectItem>
                             <SelectItem value="under50">Under $50</SelectItem>
-                            <SelectItem value="50to100">$50 â€” $100</SelectItem>
-                            <SelectItem value="100to150">$100 â€” $150</SelectItem>
+                            <SelectItem value="50to100">$50 - $100</SelectItem>
+                            <SelectItem value="100to150">$100 - $150</SelectItem>
                             <SelectItem value="over150">Over $150</SelectItem>
                         </SelectContent>
                     </Select>
