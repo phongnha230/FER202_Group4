@@ -274,6 +274,10 @@ export default function WriteReviewPage() {
         if (fit > 60) return "Runs Large";
         return "True to Size";
     }, [fit]);
+    const reviewerName = user?.full_name?.trim() || user?.email?.split('@')[0] || "You";
+    const reviewerAvatar = user?.avatar_url?.trim() || "";
+    const reviewerInitial = reviewerName.charAt(0).toUpperCase() || "U";
+
 
     return (
         <div className="container-custom py-12 max-w-7xl">
@@ -472,10 +476,20 @@ export default function WriteReviewPage() {
                             <div className="flex justify-between items-start mb-6">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden">
-                                        <div className="w-full h-full bg-slate-200 animate-pulse" />
+                                        {reviewerAvatar ? (
+                                            <Image
+                                                src={reviewerAvatar}
+                                                alt={reviewerName}
+                                                width={48}
+                                                height={48}
+                                                className="h-full w-full object-cover"
+                                            />
+                                        ) : (
+                                            <span className="text-sm font-bold text-slate-600">{reviewerInitial}</span>
+                                        )}
                                     </div>
                                     <div>
-                                        <h4 className="font-bold text-slate-900">You</h4>
+                                        <h4 className="font-bold text-slate-900">{reviewerName}</h4>
                                         <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-black uppercase">
                                             <div className="w-3 h-3 rounded-full bg-emerald-500 flex items-center justify-center">
                                                 <X className="w-2 h-2 text-white rotate-45 stroke-[4]" />
@@ -553,3 +567,4 @@ export default function WriteReviewPage() {
         </div>
     );
 }
+
