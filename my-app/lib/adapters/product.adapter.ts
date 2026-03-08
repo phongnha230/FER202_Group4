@@ -18,8 +18,18 @@ export interface UIProduct {
   colors?: string[];
   colorImages?: Record<string, string>;
   sizes?: string[];
+  variants?: {
+    id: string;
+    color: string;
+    size: string;
+    price: number;
+    stock: number;
+  }[];
   isNew?: boolean;
   salePrice?: number;
+  averageRating?: number;
+  totalReviews?: number;
+  soldCount?: number;
   // Admin fields
   status?: 'active' | 'hidden';
   createdAt?: string;
@@ -34,17 +44,17 @@ export interface UIProduct {
 export function adaptProductToUI(product: ProductWithDetails): UIProduct {
   // Extract unique colors and sizes from variants
   const colors = product.variants
-    ? Array.from(new Set(product.variants.map(v => v.color)))
+    ? Array.from(new Set(product.variants.map((v) => v.color)))
     : undefined;
-  
+
   const sizes = product.variants
-    ? Array.from(new Set(product.variants.map(v => v.size)))
+    ? Array.from(new Set(product.variants.map((v) => v.size)))
     : undefined;
 
   // Build color images map from product_images
   const colorImages: Record<string, string> = {};
   if (product.images) {
-    product.images.forEach(img => {
+    product.images.forEach((img) => {
       if (img.color && !colorImages[img.color]) {
         colorImages[img.color] = img.image_url;
       }
@@ -52,10 +62,11 @@ export function adaptProductToUI(product: ProductWithDetails): UIProduct {
   }
 
   // Get main image (prioritize is_main=true, fallback to first image or product.image)
-  const mainImage = product.images?.find(img => img.is_main)?.image_url 
-    || product.images?.[0]?.image_url 
-    || product.image 
-    || '';
+  const mainImage =
+    product.images?.find((img) => img.is_main)?.image_url ||
+    product.images?.[0]?.image_url ||
+    product.image ||
+    '';
 
   // Calculate total stock from variants
   const totalStock = product.variants
@@ -76,8 +87,18 @@ export function adaptProductToUI(product: ProductWithDetails): UIProduct {
     colors,
     colorImages: Object.keys(colorImages).length > 0 ? colorImages : undefined,
     sizes,
+    variants: product.variants?.map((variant) => ({
+      id: variant.id,
+      color: variant.color,
+      size: variant.size,
+      price: variant.price,
+      stock: variant.stock,
+    })),
     isNew: product.is_new,
     salePrice: product.sale_price || undefined,
+    averageRating: 0,
+    totalReviews: 0,
+    soldCount: 0,
     // Admin fields
     status: product.status as 'active' | 'hidden',
     createdAt: product.created_at,

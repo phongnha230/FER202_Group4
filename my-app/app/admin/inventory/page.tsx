@@ -1,30 +1,31 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-    Download,
-    RotateCw,
-    Search,
-    Package,
     AlertTriangle,
+    CheckCircle2,
     ChevronLeft,
     ChevronRight,
+    Download,
     Loader2,
+    Package,
+    Pencil,
     Plus,
+    RotateCw,
+    Search,
     X,
-    CheckCircle2,
 } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
     Table,
     TableBody,
     TableCell,
     TableHead,
     TableHeader,
-    TableRow
+    TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/lib/supabase/client";
 
@@ -44,44 +45,59 @@ interface InventoryItem {
     category: string;
     totalStock: number;
     variants: InventoryVariant[];
-    status: 'ok' | 'low_stock' | 'out_of_stock';
+    status: "ok" | "low_stock" | "out_of_stock";
 }
 
-// ─── Restock Dialog ─────────────────────────────────────────────────────────
-interface RestockDialogProps {
+interface StockDialogProps {
     item: InventoryItem;
+    mode: "restock" | "edit";
     onClose: () => void;
-    onSuccess: (itemId: string, updates: { variantId: string; addedStock: number }[]) => void;
+    onSuccess: (itemId: string, updates: { variantId: string; stock: number }[]) => void;
 }
 
-function RestockDialog({ item, onClose, onSuccess }: RestockDialogProps) {
+function StockDialog({ item, mode, onClose, onSuccess }: StockDialogProps) {
+    const isEditMode = mode === "edit";
     const [amounts, setAmounts] = useState<Record<string, number>>(() =>
-        Object.fromEntries(item.variants.map(v => [v.id, 0]))
+        Object.fromEntries(item.variants.map((variant) => [variant.id, isEditMode ? variant.stock : 0]))
     );
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const totalAdding = Object.values(amounts).reduce((s, v) => s + v, 0);
+    const changedVariants = item.variants.filter((variant) => {
+        const nextValue = amounts[variant.id] ?? 0;
+        return isEditMode ? nextValue !== variant.stock : nextValue > 0;
+    });
+    const hasChanges = changedVariants.length > 0;
+    const totalDelta = changedVariants.reduce((sum, variant) => {
+        const nextValue = amounts[variant.id] ?? 0;
+        return sum + (isEditMode ? nextValue - variant.stock : nextValue);
+    }, 0);
 
     async function handleConfirm() {
-        const toUpdate = item.variants.filter(v => amounts[v.id] > 0);
-        if (toUpdate.length === 0) return;
+        if (!hasChanges) return;
 
         setSaving(true);
         setError(null);
+
         try {
             await Promise.all(
-                toUpdate.map(v =>
-                    supabase
-                        .from("product_variants")
-                        .update({ stock: v.stock + amounts[v.id] })
-                        .eq("id", v.id)
-                )
+                changedVariants.map((variant) => {
+                    const nextStock = isEditMode ? amounts[variant.id] ?? 0 : variant.stock + (amounts[variant.id] ?? 0);
+                    return supabase.from("product_variants").update({ stock: nextStock }).eq("id", variant.id);
+                })
             );
+
             setSaved(true);
+
             setTimeout(() => {
-                onSuccess(item.id, toUpdate.map(v => ({ variantId: v.id, addedStock: amounts[v.id] })));
+                onSuccess(
+                    item.id,
+                    changedVariants.map((variant) => ({
+                        variantId: variant.id,
+                        stock: isEditMode ? amounts[variant.id] ?? 0 : variant.stock + (amounts[variant.id] ?? 0),
+                    }))
+                );
                 onClose();
             }, 800);
         } catch {
@@ -92,16 +108,14 @@ function RestockDialog({ item, onClose, onSuccess }: RestockDialogProps) {
     }
 
     return (
-        // Backdrop
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-            onClick={(e) => e.target === e.currentTarget && onClose()}
+            onClick={(event) => event.target === event.currentTarget && onClose()}
         >
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b">
+            <div className="mx-4 w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
+                <div className="flex items-center justify-between border-b px-5 py-4">
                     <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-lg bg-blue-50 flex items-center justify-center overflow-hidden relative flex-shrink-0">
+                        <div className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-blue-50">
                             {item.image ? (
                                 <Image src={item.image} alt={item.name} fill className="object-cover" sizes="36px" />
                             ) : (
@@ -109,83 +123,136 @@ function RestockDialog({ item, onClose, onSuccess }: RestockDialogProps) {
                             )}
                         </div>
                         <div>
-                            <h2 className="text-sm font-bold text-slate-900 leading-tight">{item.name}</h2>
-                            <p className="text-[10px] text-slate-500 font-mono">{item.sku}</p>
+                            <h2 className="text-sm font-bold leading-tight text-slate-900">{item.name}</h2>
+                            <p className="font-mono text-[10px] text-slate-500">{item.sku}</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+                    <button onClick={onClose} className="text-slate-400 transition-colors hover:text-slate-600">
                         <X className="h-4 w-4" />
                     </button>
                 </div>
 
-                {/* Body */}
-                <div className="px-5 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
+                <div className="max-h-[55vh] space-y-3 overflow-y-auto px-5 py-4">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                        Add Stock by Variant
+                        {isEditMode ? "Set Stock by Variant" : "Add Stock by Variant"}
                     </p>
                     {item.variants.length === 0 ? (
-                        <p className="text-sm text-slate-500 text-center py-4">No variants found for this product.</p>
+                        <p className="py-4 text-center text-sm text-slate-500">No variants found for this product.</p>
                     ) : (
-                        item.variants.map((v) => (
-                            <div key={v.id} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-slate-50 transition-colors">
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-bold text-slate-900 uppercase">{v.size}</span>
-                                        {v.color && (
-                                            <span className="text-[10px] text-slate-500 bg-white border rounded px-1.5 py-0.5">{v.color}</span>
-                                        )}
+                        item.variants.map((variant) => {
+                            const inputValue = amounts[variant.id] ?? 0;
+                            const previewValue = isEditMode ? inputValue : variant.stock + inputValue;
+                            const showPreview = isEditMode ? inputValue !== variant.stock : inputValue > 0;
+
+                            return (
+                                <div
+                                    key={variant.id}
+                                    className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/60 p-3 transition-colors hover:bg-slate-50"
+                                >
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold uppercase text-slate-900">{variant.size}</span>
+                                            {variant.color && (
+                                                <span className="rounded border bg-white px-1.5 py-0.5 text-[10px] text-slate-500">
+                                                    {variant.color}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="mt-0.5 text-[10px] text-slate-400">
+                                            Current stock:&nbsp;
+                                            <span
+                                                className={`font-bold ${
+                                                    variant.stock < 10
+                                                        ? "text-rose-500"
+                                                        : variant.stock < 20
+                                                          ? "text-orange-500"
+                                                          : "text-slate-600"
+                                                }`}
+                                            >
+                                                {variant.stock} units
+                                            </span>
+                                        </p>
                                     </div>
-                                    <p className="text-[10px] text-slate-400 mt-0.5">
-                                        Current stock:&nbsp;
-                                        <span className={`font-bold ${v.stock < 10 ? 'text-rose-500' : v.stock < 20 ? 'text-orange-500' : 'text-slate-600'}`}>
-                                            {v.stock} units
+
+                                    <div className="flex items-center overflow-hidden rounded-lg border bg-white">
+                                        <button
+                                            className="px-2 py-1.5 text-sm font-bold text-slate-500 transition-colors hover:bg-slate-100"
+                                            onClick={() =>
+                                                setAmounts((prev) => ({
+                                                    ...prev,
+                                                    [variant.id]: Math.max(0, (prev[variant.id] ?? inputValue) - 1),
+                                                }))
+                                            }
+                                        >
+                                            -
+                                        </button>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            value={inputValue}
+                                            onChange={(event) =>
+                                                setAmounts((prev) => ({
+                                                    ...prev,
+                                                    [variant.id]: Math.max(0, parseInt(event.target.value, 10) || 0),
+                                                }))
+                                            }
+                                            className="w-14 border-x py-1.5 text-center text-sm font-bold text-slate-900 focus:outline-none"
+                                        />
+                                        <button
+                                            className="px-2 py-1.5 text-sm font-bold text-slate-500 transition-colors hover:bg-slate-100"
+                                            onClick={() =>
+                                                setAmounts((prev) => ({
+                                                    ...prev,
+                                                    [variant.id]: (prev[variant.id] ?? inputValue) + 1,
+                                                }))
+                                            }
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+
+                                    {showPreview && (
+                                        <span
+                                            className={`whitespace-nowrap text-[10px] font-bold ${
+                                                previewValue < variant.stock ? "text-orange-600" : "text-emerald-600"
+                                            }`}
+                                        >
+                                            {"->"} {previewValue}
                                         </span>
-                                    </p>
+                                    )}
                                 </div>
-
-                                {/* +/- input */}
-                                <div className="flex items-center border rounded-lg overflow-hidden bg-white">
-                                    <button
-                                        className="px-2 py-1.5 text-slate-500 hover:bg-slate-100 transition-colors text-sm font-bold"
-                                        onClick={() => setAmounts(prev => ({ ...prev, [v.id]: Math.max(0, (prev[v.id] || 0) - 1) }))}
-                                    >−</button>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        value={amounts[v.id] || 0}
-                                        onChange={e => setAmounts(prev => ({ ...prev, [v.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
-                                        className="w-14 text-center text-sm font-bold text-slate-900 border-x focus:outline-none py-1.5"
-                                    />
-                                    <button
-                                        className="px-2 py-1.5 text-slate-500 hover:bg-slate-100 transition-colors text-sm font-bold"
-                                        onClick={() => setAmounts(prev => ({ ...prev, [v.id]: (prev[v.id] || 0) + 1 }))}
-                                    >+</button>
-                                </div>
-
-                                {amounts[v.id] > 0 && (
-                                    <span className="text-[10px] font-bold text-emerald-600 whitespace-nowrap">
-                                        → {v.stock + amounts[v.id]}
-                                    </span>
-                                )}
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
 
-                {/* Error */}
                 {error && (
-                    <div className="mx-5 mb-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    <div className="mx-5 mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
                         {error}
                     </div>
                 )}
 
-                {/* Footer */}
-                <div className="px-5 py-4 border-t bg-slate-50 flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3 border-t bg-slate-50 px-5 py-4">
                     <div className="text-xs text-slate-500">
-                        {totalAdding > 0 ? (
-                            <span>Adding <span className="font-bold text-emerald-600">+{totalAdding}</span> units total</span>
+                        {hasChanges ? (
+                            isEditMode ? (
+                                <span>
+                                    Net change{" "}
+                                    <span className={`font-bold ${totalDelta >= 0 ? "text-emerald-600" : "text-orange-600"}`}>
+                                        {totalDelta > 0 ? "+" : ""}
+                                        {totalDelta}
+                                    </span>{" "}
+                                    units total
+                                </span>
+                            ) : (
+                                <span>
+                                    Adding <span className="font-bold text-emerald-600">+{totalDelta}</span> units total
+                                </span>
+                            )
                         ) : (
-                            <span className="text-slate-400">Enter quantities above</span>
+                            <span className="text-slate-400">
+                                {isEditMode ? "Adjust stock values above" : "Enter quantities above"}
+                            </span>
                         )}
                     </div>
                     <div className="flex gap-2">
@@ -194,16 +261,32 @@ function RestockDialog({ item, onClose, onSuccess }: RestockDialogProps) {
                         </Button>
                         <Button
                             size="sm"
-                            disabled={totalAdding === 0 || saving || saved}
+                            disabled={!hasChanges || saving || saved}
                             onClick={handleConfirm}
-                            className={`text-xs font-bold gap-1.5 min-w-[110px] transition-all ${saved ? 'bg-emerald-500 hover:bg-emerald-500' : 'bg-blue-600 hover:bg-blue-700'}`}
+                            className={`min-w-[110px] gap-1.5 text-xs font-bold transition-all ${
+                                saved ? "bg-emerald-500 hover:bg-emerald-500" : "bg-blue-600 hover:bg-blue-700"
+                            }`}
                         >
                             {saved ? (
-                                <><CheckCircle2 className="h-3.5 w-3.5" /> Saved!</>
+                                <>
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    <span>Saved!</span>
+                                </>
                             ) : saving ? (
-                                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
+                                <>
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    <span>Saving...</span>
+                                </>
+                            ) : isEditMode ? (
+                                <>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                    <span>Save Stock</span>
+                                </>
                             ) : (
-                                <><Plus className="h-3.5 w-3.5" /> Confirm Restock</>
+                                <>
+                                    <Plus className="h-3.5 w-3.5" />
+                                    <span>Confirm Restock</span>
+                                </>
                             )}
                         </Button>
                     </div>
@@ -213,19 +296,19 @@ function RestockDialog({ item, onClose, onSuccess }: RestockDialogProps) {
     );
 }
 
-// ─── Main Page ───────────────────────────────────────────────────────────────
 export default function InventoryPage() {
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [showLowStockOnly, setShowLowStockOnly] = useState(false);
     const [restockTarget, setRestockTarget] = useState<InventoryItem | null>(null);
+    const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
 
     const loadInventory = useCallback(async () => {
         try {
             setLoading(true);
             const { data: products, error } = await supabase
-                .from('products')
+                .from("products")
                 .select(`
                     id,
                     name,
@@ -234,30 +317,31 @@ export default function InventoryPage() {
                     category:categories(name),
                     product_variants(id, size, color, stock, price)
                 `)
-                .order('name');
+                .order("name");
 
             if (error) throw error;
 
-            const inventoryItems: InventoryItem[] = (products || []).map(product => {
+            const inventoryItems: InventoryItem[] = (products || []).map((product) => {
                 const variants = product.product_variants || [];
-                const totalStock = variants.reduce((sum: number, v: { stock?: number }) => sum + (v.stock || 0), 0);
-                let status: 'ok' | 'low_stock' | 'out_of_stock' = 'ok';
-                if (totalStock === 0) status = 'out_of_stock';
-                else if (totalStock < 20) status = 'low_stock';
+                const totalStock = variants.reduce((sum: number, variant: { stock?: number }) => sum + (variant.stock || 0), 0);
+                let status: "ok" | "low_stock" | "out_of_stock" = "ok";
+
+                if (totalStock === 0) status = "out_of_stock";
+                else if (totalStock < 20) status = "low_stock";
 
                 return {
                     id: product.id,
                     sku: `UN-${product.slug?.substring(0, 6).toUpperCase() || product.id.substring(0, 6).toUpperCase()}`,
                     name: product.name,
                     image: product.image,
-                    category: (product.category as { name?: string })?.name || 'Uncategorized',
+                    category: (product.category as { name?: string })?.name || "Uncategorized",
                     totalStock,
-                    variants: variants.map((v: { id: string; size: string; color: string; stock: number; price: number }) => ({
-                        id: v.id,
-                        size: v.size,
-                        color: v.color,
-                        stock: v.stock,
-                        price: v.price,
+                    variants: variants.map((variant: { id: string; size: string; color: string; stock: number; price: number }) => ({
+                        id: variant.id,
+                        size: variant.size,
+                        color: variant.color,
+                        stock: variant.stock,
+                        price: variant.price,
                     })),
                     status,
                 };
@@ -265,86 +349,111 @@ export default function InventoryPage() {
 
             setInventory(inventoryItems);
         } catch (error) {
-            console.error('Error loading inventory:', error);
+            console.error("Error loading inventory:", error);
         } finally {
             setLoading(false);
         }
     }, []);
 
-    useEffect(() => { loadInventory(); }, [loadInventory]);
+    useEffect(() => {
+        loadInventory();
+    }, [loadInventory]);
 
-    // Apply restock updates to local state without full reload
-    function handleRestockSuccess(itemId: string, updates: { variantId: string; addedStock: number }[]) {
-        setInventory(prev => prev.map(item => {
-            if (item.id !== itemId) return item;
-            const updatedVariants = item.variants.map(v => {
-                const upd = updates.find(u => u.variantId === v.id);
-                return upd ? { ...v, stock: v.stock + upd.addedStock } : v;
-            });
-            const newTotal = updatedVariants.reduce((s, v) => s + v.stock, 0);
-            let status: 'ok' | 'low_stock' | 'out_of_stock' = 'ok';
-            if (newTotal === 0) status = 'out_of_stock';
-            else if (newTotal < 20) status = 'low_stock';
-            return { ...item, variants: updatedVariants, totalStock: newTotal, status };
-        }));
+    function handleStockSuccess(itemId: string, updates: { variantId: string; stock: number }[]) {
+        setInventory((prev) =>
+            prev.map((item) => {
+                if (item.id !== itemId) return item;
+
+                const updatedVariants = item.variants.map((variant) => {
+                    const update = updates.find((entry) => entry.variantId === variant.id);
+                    return update ? { ...variant, stock: update.stock } : variant;
+                });
+
+                const newTotal = updatedVariants.reduce((sum, variant) => sum + variant.stock, 0);
+                let status: "ok" | "low_stock" | "out_of_stock" = "ok";
+
+                if (newTotal === 0) status = "out_of_stock";
+                else if (newTotal < 20) status = "low_stock";
+
+                return {
+                    ...item,
+                    variants: updatedVariants,
+                    totalStock: newTotal,
+                    status,
+                };
+            })
+        );
     }
 
     const getSizeStock = (variants: InventoryVariant[]) => {
         const sizeMap: Record<string, number> = {};
-        variants.forEach(v => {
-            if (!sizeMap[v.size]) sizeMap[v.size] = 0;
-            sizeMap[v.size] += v.stock;
+        variants.forEach((variant) => {
+            if (!sizeMap[variant.size]) sizeMap[variant.size] = 0;
+            sizeMap[variant.size] += variant.stock;
         });
         return sizeMap;
     };
 
     const filteredInventory = inventory.filter((item) => {
-        const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        const matchesSearch =
+            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             item.sku.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesLowStock = showLowStockOnly ? (item.status === 'low_stock' || item.status === 'out_of_stock') : true;
+        const matchesLowStock = showLowStockOnly
+            ? item.status === "low_stock" || item.status === "out_of_stock"
+            : true;
         return matchesSearch && matchesLowStock;
     });
 
     const totalSkus = inventory.length;
-    const lowStockCount = inventory.filter(i => i.status === 'low_stock').length;
-    const outOfStockCount = inventory.filter(i => i.status === 'out_of_stock').length;
+    const lowStockCount = inventory.filter((item) => item.status === "low_stock").length;
+    const outOfStockCount = inventory.filter((item) => item.status === "out_of_stock").length;
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            <div className="flex min-h-[400px] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
             </div>
         );
     }
 
     return (
         <div className="space-y-6">
-            {/* Restock Dialog */}
             {restockTarget && (
-                <RestockDialog
+                <StockDialog
                     item={restockTarget}
+                    mode="restock"
                     onClose={() => setRestockTarget(null)}
-                    onSuccess={handleRestockSuccess}
+                    onSuccess={handleStockSuccess}
                 />
             )}
 
-            {/* Header */}
+            {editTarget && (
+                <StockDialog
+                    item={editTarget}
+                    mode="edit"
+                    onClose={() => setEditTarget(null)}
+                    onSuccess={handleStockSuccess}
+                />
+            )}
+
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900 uppercase">INVENTORY</h1>
+                    <h1 className="text-3xl font-bold uppercase tracking-tight text-slate-900">INVENTORY</h1>
                     <p className="text-slate-500">
                         Stock management and variant tracking.
-                        <span className="ml-2 text-orange-600 font-medium">{lowStockCount} low stock</span>
-                        {outOfStockCount > 0 && <span className="ml-2 text-red-600 font-medium">{outOfStockCount} out of stock</span>}
+                        <span className="ml-2 font-medium text-orange-600">{lowStockCount} low stock</span>
+                        {outOfStockCount > 0 && (
+                            <span className="ml-2 font-medium text-red-600">{outOfStockCount} out of stock</span>
+                        )}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" className="gap-2 font-bold uppercase tracking-wider text-xs h-10">
+                    <Button variant="outline" className="h-10 gap-2 text-xs font-bold uppercase tracking-wider">
                         <Download className="h-4 w-4" />
                         Export
                     </Button>
                     <Button
-                        className="bg-blue-600 hover:bg-blue-700 gap-2 font-bold uppercase tracking-wider text-xs h-10"
+                        className="h-10 gap-2 bg-blue-600 text-xs font-bold uppercase tracking-wider hover:bg-blue-700"
                         onClick={loadInventory}
                     >
                         <RotateCw className="h-4 w-4" />
@@ -353,27 +462,26 @@ export default function InventoryPage() {
                 </div>
             </div>
 
-            {/* Toolbar */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-lg border">
+            <div className="flex flex-col items-center justify-between gap-4 rounded-lg border bg-white p-4 md:flex-row">
                 <div className="relative w-full md:w-96">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                     <Input
                         placeholder="Search by name or SKU..."
-                        className="pl-9 bg-white border-slate-200"
+                        className="border-slate-200 bg-white pl-9"
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(event) => setSearchTerm(event.target.value)}
                     />
                 </div>
-                <div className="flex items-center gap-6 w-full md:w-auto">
+                <div className="flex w-full items-center gap-6 md:w-auto">
                     <div className="flex items-center space-x-2">
                         <Checkbox
                             id="low-stock"
                             checked={showLowStockOnly}
-                            onCheckedChange={(checked: boolean | 'indeterminate') => setShowLowStockOnly(checked as boolean)}
+                            onCheckedChange={(checked: boolean | "indeterminate") => setShowLowStockOnly(checked as boolean)}
                         />
                         <label
                             htmlFor="low-stock"
-                            className="text-xs font-bold uppercase tracking-wider text-slate-600 cursor-pointer"
+                            className="cursor-pointer text-xs font-bold uppercase tracking-wider text-slate-600"
                         >
                             Low Stock Only
                         </label>
@@ -381,31 +489,44 @@ export default function InventoryPage() {
                 </div>
             </div>
 
-            {/* Inventory Table */}
             <div className="rounded-md border bg-white">
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-slate-50 hover:bg-slate-50">
                             <TableHead className="w-[60px]"></TableHead>
-                            <TableHead className="w-[120px] text-[10px] font-bold uppercase tracking-wider text-slate-500">SKU</TableHead>
-                            <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Product Name</TableHead>
-                            <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Category</TableHead>
-                            <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">Total Stock</TableHead>
-                            <TableHead className="w-[280px] text-[10px] font-bold uppercase tracking-wider text-slate-500">Stock by Size</TableHead>
-                            <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</TableHead>
-                            <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500 text-right">Action</TableHead>
+                            <TableHead className="w-[120px] text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                SKU
+                            </TableHead>
+                            <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Product Name
+                            </TableHead>
+                            <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Category
+                            </TableHead>
+                            <TableHead className="text-center text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Total Stock
+                            </TableHead>
+                            <TableHead className="w-[280px] text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Stock by Size
+                            </TableHead>
+                            <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Status
+                            </TableHead>
+                            <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Action
+                            </TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredInventory.length > 0 ? (
                             filteredInventory.map((item) => {
                                 const sizeStock = getSizeStock(item.variants);
-                                const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+                                const sizes = ["S", "M", "L", "XL", "XXL"];
 
                                 return (
                                     <TableRow key={item.id}>
                                         <TableCell>
-                                            <div className="h-10 w-10 rounded bg-slate-100 flex items-center justify-center overflow-hidden relative">
+                                            <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-slate-100">
                                                 {item.image ? (
                                                     <Image
                                                         src={item.image}
@@ -419,12 +540,10 @@ export default function InventoryPage() {
                                                 )}
                                             </div>
                                         </TableCell>
-                                        <TableCell className="font-mono text-xs text-blue-600">
-                                            {item.sku}
-                                        </TableCell>
+                                        <TableCell className="font-mono text-xs text-blue-600">{item.sku}</TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <span className="font-bold text-slate-900 text-sm">{item.name}</span>
+                                                <span className="text-sm font-bold text-slate-900">{item.name}</span>
                                                 <span className="text-[10px] text-slate-500">{item.variants.length} variants</span>
                                             </div>
                                         </TableCell>
@@ -432,10 +551,15 @@ export default function InventoryPage() {
                                             <span className="text-xs text-slate-600">{item.category}</span>
                                         </TableCell>
                                         <TableCell className="text-center">
-                                            <span className={`text-lg font-bold ${
-                                                item.status === 'out_of_stock' ? 'text-red-600' :
-                                                item.status === 'low_stock' ? 'text-orange-500' : 'text-slate-900'
-                                            }`}>
+                                            <span
+                                                className={`text-lg font-bold ${
+                                                    item.status === "out_of_stock"
+                                                        ? "text-red-600"
+                                                        : item.status === "low_stock"
+                                                          ? "text-orange-500"
+                                                          : "text-slate-900"
+                                                }`}
+                                            >
                                                 {item.totalStock}
                                             </span>
                                         </TableCell>
@@ -445,11 +569,18 @@ export default function InventoryPage() {
                                                     const qty = sizeStock[size] || 0;
                                                     return (
                                                         <div key={size} className="flex flex-col items-center">
-                                                            <span className="text-[10px] font-bold uppercase text-slate-400 mb-1">{size}</span>
-                                                            <span className={`text-xs font-bold ${
-                                                                qty === 0 ? 'text-red-600' :
-                                                                qty < 5 ? 'text-orange-500' : 'text-slate-900'
-                                                            }`}>
+                                                            <span className="mb-1 text-[10px] font-bold uppercase text-slate-400">
+                                                                {size}
+                                                            </span>
+                                                            <span
+                                                                className={`text-xs font-bold ${
+                                                                    qty === 0
+                                                                        ? "text-red-600"
+                                                                        : qty < 5
+                                                                          ? "text-orange-500"
+                                                                          : "text-slate-900"
+                                                                }`}
+                                                            >
                                                                 {qty}
                                                             </span>
                                                         </div>
@@ -458,12 +589,12 @@ export default function InventoryPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            {item.status === 'out_of_stock' ? (
+                                            {item.status === "out_of_stock" ? (
                                                 <div className="flex items-center gap-1 text-red-600">
-                                                    <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse"></span>
+                                                    <span className="h-2 w-2 animate-pulse rounded-full bg-red-600"></span>
                                                     <span className="text-[10px] font-bold uppercase">Out of Stock</span>
                                                 </div>
-                                            ) : item.status === 'low_stock' ? (
+                                            ) : item.status === "low_stock" ? (
                                                 <div className="flex items-center gap-1 text-orange-500">
                                                     <AlertTriangle className="h-3 w-3" />
                                                     <span className="text-[10px] font-bold uppercase">Low Stock</span>
@@ -476,15 +607,26 @@ export default function InventoryPage() {
                                             )}
                                         </TableCell>
                                         <TableCell className="text-right">
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="text-[10px] font-bold uppercase tracking-wider h-7 px-3 gap-1 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
-                                                onClick={() => setRestockTarget(item)}
-                                            >
-                                                <Plus className="h-3 w-3" />
-                                                Restock
-                                            </Button>
+                                            <div className="flex justify-end gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-7 gap-1 px-3 text-[10px] font-bold uppercase tracking-wider transition-colors hover:border-slate-300 hover:bg-slate-100"
+                                                    onClick={() => setEditTarget(item)}
+                                                >
+                                                    <Pencil className="h-3 w-3" />
+                                                    Edit
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-7 gap-1 px-3 text-[10px] font-bold uppercase tracking-wider transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                                                    onClick={() => setRestockTarget(item)}
+                                                >
+                                                    <Plus className="h-3 w-3" />
+                                                    Restock
+                                                </Button>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 );
@@ -500,16 +642,21 @@ export default function InventoryPage() {
                 </Table>
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-3 sm:px-6 mt-4 rounded-md">
-                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                    Showing <span className="text-slate-900">{filteredInventory.length}</span> of <span className="text-blue-600">{totalSkus} Products</span>
+            <div className="mt-4 flex items-center justify-between rounded-md border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Showing <span className="text-slate-900">{filteredInventory.length}</span> of{" "}
+                    <span className="text-blue-600">{totalSkus} Products</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button variant="outline" size="icon" className="h-8 w-8" disabled>
                         <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" className="h-8 w-8 p-0 font-bold text-blue-600 border-blue-200 bg-blue-50 text-xs">1</Button>
+                    <Button
+                        variant="outline"
+                        className="h-8 w-8 border-blue-200 bg-blue-50 p-0 text-xs font-bold text-blue-600"
+                    >
+                        1
+                    </Button>
                     <Button variant="outline" size="icon" className="h-8 w-8" disabled>
                         <ChevronRight className="h-4 w-4" />
                     </Button>

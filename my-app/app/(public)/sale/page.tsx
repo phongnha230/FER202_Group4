@@ -101,7 +101,7 @@ export default function Page() {
         return (
             <main className="py-10 md:py-12">
                 <div className="container-custom page-container">
-                    <div className="flex items-center justify-center min-h-[400px]">
+                    <div suppressHydrationWarning className="flex items-center justify-center min-h-[400px]">
                         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
                     </div>
                 </div>
@@ -158,7 +158,7 @@ export default function Page() {
                                     <SelectItem value="newest">Newest</SelectItem>
                                     <SelectItem value="priceAsc">Price: Low to High</SelectItem>
                                     <SelectItem value="priceDesc">Price: High to Low</SelectItem>
-                                    <SelectItem value="nameAsc">Name A–Z</SelectItem>
+                                    <SelectItem value="nameAsc">Name Aâ€“Z</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -191,8 +191,8 @@ export default function Page() {
                         <SelectContent>
                             <SelectItem value="all">Price: All</SelectItem>
                             <SelectItem value="under50">Under $50</SelectItem>
-                            <SelectItem value="50to100">$50 — $100</SelectItem>
-                            <SelectItem value="100to150">$100 — $150</SelectItem>
+                            <SelectItem value="50to100">$50 â€” $100</SelectItem>
+                            <SelectItem value="100to150">$100 â€” $150</SelectItem>
                             <SelectItem value="over150">Over $150</SelectItem>
                         </SelectContent>
                     </Select>

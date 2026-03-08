@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Button } from '@/components/ui/button';
 import { adaptProductsToUI } from '@/lib/adapters/product.adapter';
 import { ArrowRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
@@ -12,14 +11,16 @@ type CategoryCard = {
     count: number;
     image: string;
     overlayLabel: string;
+    imageClassName: string;
 };
 
 function pickLifestyleImage(category: string, fallbackImage: string) {
     const key = category.toLowerCase();
 
-    if (key.includes('hood') || key.includes('sweater')) return '/banners/style-inspiration.jpg';
-    if (key.includes('jacket') || key.includes('khoac') || key.includes('outer')) return '/banners/concrete-jungle.jpg';
-    if (key.includes('tee') || key.includes('thun') || key.includes('t-shirt')) return '/banners/hero-model.jpg';
+    if (key.includes('sweater')) return '/banners/ao-sweater-nam-phoi-voi-quan-gi-6_84ac797089b142ee9e96d09135c3317b.jpg';
+    if (key.includes('jacket') || key.includes('khoac') || key.includes('outer')) return '/banners/jackets.png';
+    if (key.includes('tee') || key.includes('thun') || key.includes('t-shirt')) return '/banners/ao-phong-mau-xam-in-chu-va-hinh-anh-phoi-voi-quan-kaki-mau-be.jpg';
+    if (key.includes('pant') || key.includes('quan') || key.includes('trouser') || key.includes('bottom')) return '/banners/Pants1.jpg';
     if (key.includes('shirt') || key.includes('so mi') || key.includes('polo')) return '/banners/neon-nights.jpg';
 
     return fallbackImage || '/banners/hero-model.jpg';
@@ -28,12 +29,23 @@ function pickLifestyleImage(category: string, fallbackImage: string) {
 function getOverlayLabel(category: string) {
     const key = category.toLowerCase();
 
-    if (key.includes('hood') || key.includes('sweater')) return 'HOODIES';
+    if (key.includes('hood')) return 'HOODIES';
+    if (key.includes('sweater')) return 'SWEATERS';
     if (key.includes('jacket') || key.includes('khoac') || key.includes('outer')) return 'JACKETS';
     if (key.includes('tee') || key.includes('thun') || key.includes('t-shirt')) return 'TEES';
     if (key.includes('shirt') || key.includes('so mi') || key.includes('polo')) return 'SHIRTS';
 
     return category.toUpperCase();
+}
+
+function getImageClassName(category: string) {
+    const key = category.toLowerCase();
+
+    if (key.includes('jacket') || key.includes('khoac') || key.includes('outer')) {
+        return 'object-cover object-[78%_center] transition duration-500 group-hover:scale-105';
+    }
+
+    return 'object-cover object-center transition duration-500 group-hover:scale-105';
 }
 
 async function getFeaturedProductsServer(limit = 10) {
@@ -85,6 +97,7 @@ export default async function FeaturedCollection() {
             count: 1,
             image: pickLifestyleImage(categoryName, product.image),
             overlayLabel: getOverlayLabel(categoryName),
+            imageClassName: getImageClassName(categoryName),
         });
     });
 
@@ -95,29 +108,33 @@ export default async function FeaturedCollection() {
     }
 
     return (
-        <section className="py-14 md:py-20 lg:py-24 bg-[#f8f8f6]">
+        <section className="bg-[#f8f8f6] py-14 md:py-20 lg:py-24">
             <div className="container-custom">
                 <ScrollAnimationWrapper>
                     <div className="mx-auto mb-12 max-w-7xl md:mb-14">
                         <div className="grid grid-cols-1 items-center gap-9 md:grid-cols-[640px_1fr] md:gap-20 lg:gap-24">
-                            <div className="grid grid-cols-2 gap-4 md:gap-5">
-                                <div className="relative h-[250px] overflow-hidden bg-slate-200 sm:h-[300px] md:h-[340px]">
-                                    <Image
-                                        src="/banners/concrete-jungle.jpg"
-                                        alt="Concrete architecture streetwear mood"
-                                        fill
-                                        sizes="(max-width: 768px) 50vw, 320px"
-                                        className="object-cover grayscale contrast-110"
-                                    />
+                            <div className="grid grid-cols-[0.95fr_1.05fr] items-stretch gap-4 md:gap-5">
+                                <div className="bg-[#ebe7e1] p-3 sm:p-4">
+                                    <div className="relative h-[250px] overflow-hidden bg-[#f6f3ef] ring-1 ring-black/6 sm:h-[300px] md:h-[340px]">
+                                        <Image
+                                            src="/banners/Phoi-do-phong-cach-streetwear_Img8.png"
+                                            alt="Streetwear outfit styling collage"
+                                            fill
+                                            sizes="(max-width: 768px) 50vw, 320px"
+                                            className="object-cover object-center"
+                                        />
+                                    </div>
                                 </div>
-                                <div className="relative h-[250px] overflow-hidden bg-slate-300 sm:h-[300px] md:h-[340px]">
-                                    <Image
-                                        src="/banners/neon-nights.jpg"
-                                        alt="Urban street scene with motion blur"
-                                        fill
-                                        sizes="(max-width: 768px) 50vw, 320px"
-                                        className="object-cover grayscale"
-                                    />
+                                <div className="bg-[#e7e2db] p-3 sm:p-4">
+                                    <div className="relative h-[250px] overflow-hidden bg-[#f6f3ef] ring-1 ring-black/6 sm:h-[300px] md:h-[340px]">
+                                        <Image
+                                            src="/banners/Phong_cach.png"
+                                            alt="Streetwear styling moodboard"
+                                            fill
+                                            sizes="(max-width: 768px) 50vw, 320px"
+                                            className="object-cover object-center"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -188,7 +205,7 @@ export default async function FeaturedCollection() {
                                                     alt={card.name}
                                                     fill
                                                     sizes="(max-width: 640px) 220px, (max-width: 1024px) 245px, 270px"
-                                                    className="object-cover object-center transition duration-500 group-hover:scale-105"
+                                                    className={card.imageClassName}
                                                 />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                                                 <div className="absolute inset-x-0 bottom-0 translate-y-5 p-5 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
@@ -212,16 +229,68 @@ export default async function FeaturedCollection() {
                 </ScrollAnimationWrapper>
 
                 <ScrollAnimationWrapper delay={0.5}>
-                    <div className="text-center">
-                        <Button asChild size="lg" className="btn-primary group">
-                            <Link href="/streetwear">
-                                VIEW ALL PRODUCTS
-                                <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-                            </Link>
-                        </Button>
+                    <div className="mx-auto max-w-6xl">
+                        <div className="relative overflow-hidden rounded-[32px] border border-slate-300 bg-slate-900 px-6 py-7 text-white shadow-[0_24px_60px_rgba(15,23,42,0.2)] md:px-10 md:py-9">
+                            <div className="absolute inset-0">
+                                <Image
+                                    src="/banners/concrete-jungle.jpg"
+                                    alt="Streetwear collection background"
+                                    fill
+                                    sizes="(max-width: 768px) 100vw, 1200px"
+                                    className="object-cover object-center"
+                                />
+                            </div>
+                            <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(2,6,23,0.88)_18%,rgba(2,6,23,0.72)_48%,rgba(2,6,23,0.84)_100%),radial-gradient(circle_at_top_right,_rgba(255,255,255,0.12),_transparent_34%)]" />
+
+                            <div className="relative grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/55">
+                                        Full Collection Access
+                                    </p>
+                                    <h3 className="mt-3 text-3xl font-black uppercase leading-none tracking-tight text-white md:text-4xl">
+                                        See the complete streetwear edit.
+                                    </h3>
+                                    <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/72 md:text-base md:leading-7">
+                                        Don&apos;t leave this section with only one click. Browse every category,
+                                        every featured pick, and the newest city-ready essentials in one place.
+                                    </p>
+
+                                    <div className="mt-5 flex flex-wrap gap-3">
+                                        <div className="rounded-full border border-white/12 bg-white/8 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/78">
+                                            {featuredProducts.length} featured picks
+                                        </div>
+                                        <div className="rounded-full border border-white/12 bg-white/8 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/78">
+                                            {categoryCards.length} streetwear lanes
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <Link
+                                    href="/streetwear"
+                                    className="group inline-flex items-center justify-center gap-3 rounded-full bg-white px-6 py-3 text-sm font-bold uppercase tracking-[0.18em] text-slate-950 transition hover:bg-slate-200"
+                                >
+                                    Explore All Products
+                                    <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                                </Link>
+                            </div>
+                        </div>
                     </div>
                 </ScrollAnimationWrapper>
             </div>
         </section>
     );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

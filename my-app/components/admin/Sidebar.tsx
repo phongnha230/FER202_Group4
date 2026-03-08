@@ -8,7 +8,8 @@ import {
     ShoppingCart,
     Users,
     LogOut,
-    Layers
+    Layers,
+    MessageSquareQuote
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,11 @@ const sidebarItems = [
         title: "Customers",
         href: "/admin/customers",
         icon: Users,
+    },
+    {
+        title: "Reviews",
+        href: "/admin/reviews",
+        icon: MessageSquareQuote,
     },
 ];
 
@@ -81,9 +87,7 @@ export function Sidebar() {
                     variant="outline"
                     className="w-full justify-start gap-2"
                     onClick={() => {
-                        // Clear the fake session cookie
                         document.cookie = "admin_session=; path=/; max-age=0";
-                        // Redirect to login
                         window.location.href = "/admin/login";
                     }}
                 >

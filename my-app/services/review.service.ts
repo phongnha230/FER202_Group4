@@ -1,14 +1,23 @@
 import { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
 import { Review, ReviewReaction } from '@/types/database.types';
-import { 
-  ReviewWithUser, 
-  CreateReviewRequest, 
+import {
+  AdminReviewWithDetails,
+  ReviewWithUser,
+  CreateReviewRequest,
   UpdateReviewRequest,
   ReviewStats,
   AddReactionRequest,
-  FitRatingStats
+  FitRatingStats,
 } from '@/types/review.type';
+
+function normalizeRelation<T>(value: T | T[] | null | undefined): T | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return Array.isArray(value) ? value[0] : value;
+}
 
 /**
  * Create a new review
@@ -56,24 +65,29 @@ export async function getProductReviews(
     return { data: [], error };
   }
 
-  // Transform data with reaction counts
-  const reviewIds = data.map((r: ReviewWithUser) => r.id);
-  const { data: reactions } = await supabase
-    .from('review_reactions')
-    .select('review_id, reaction_type, user_id')
-    .in('review_id', reviewIds);
+  const reviewIds = (data || []).map((review: { id: string }) => review.id);
+  let reactions: ReviewReaction[] = [];
 
-  // Transform data with reaction counts
-  const transformedReviews: ReviewWithUser[] = data.map((review: ReviewWithUser) => {
-    const reviewReactions = (reactions as ReviewReaction[] | null)?.filter((r: ReviewReaction) => r.review_id === review.id) || [];
-    const helpful_count = reviewReactions.filter((r: ReviewReaction) => r.reaction_type === 'helpful').length;
-    const not_helpful_count = reviewReactions.filter((r: ReviewReaction) => r.reaction_type === 'not_helpful').length;
-    const user_reaction = currentUserId 
-      ? reviewReactions.find((r: ReviewReaction) => r.user_id === currentUserId)?.reaction_type || null
+  if (reviewIds.length > 0) {
+    const { data: reactionRows } = await supabase
+      .from('review_reactions')
+      .select('review_id, reaction_type, user_id')
+      .in('review_id', reviewIds);
+
+    reactions = (reactionRows as ReviewReaction[] | null) || [];
+  }
+
+  const transformedReviews: ReviewWithUser[] = (data || []).map((review: ReviewWithUser) => {
+    const reviewReactions = reactions.filter((reaction) => reaction.review_id === review.id);
+    const helpful_count = reviewReactions.filter((reaction) => reaction.reaction_type === 'helpful').length;
+    const not_helpful_count = reviewReactions.filter((reaction) => reaction.reaction_type === 'not_helpful').length;
+    const user_reaction = currentUserId
+      ? reviewReactions.find((reaction) => reaction.user_id === currentUserId)?.reaction_type || null
       : null;
 
     return {
       ...review,
+      user: normalizeRelation(review.user),
       helpful_count,
       not_helpful_count,
       user_reaction,
@@ -104,6 +118,53 @@ export async function getUserReviews(userId: string): Promise<{ data: ReviewWith
 }
 
 /**
+ * Get all reviews for admin with customer, product, and order details
+ */
+export async function getAdminReviews(): Promise<{ data: AdminReviewWithDetails[]; error: PostgrestError | null }> {
+  const { data, error } = await supabase
+    .from('reviews')
+    .select(`
+      *,
+      user:profiles(id, full_name, avatar_url),
+      product:products(id, name, slug, image, status),
+      order:orders(id, order_status, payment_status, total_price, created_at)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    return { data: [], error };
+  }
+
+  const reviewIds = (data || []).map((review: { id: string }) => review.id);
+  let reactions: ReviewReaction[] = [];
+
+  if (reviewIds.length > 0) {
+    const { data: reactionRows } = await supabase
+      .from('review_reactions')
+      .select('review_id, reaction_type, user_id')
+      .in('review_id', reviewIds);
+
+    reactions = (reactionRows as ReviewReaction[] | null) || [];
+  }
+
+  const transformedReviews: AdminReviewWithDetails[] = (data || []).map((review: AdminReviewWithDetails) => {
+    const reviewReactions = reactions.filter((reaction) => reaction.review_id === review.id);
+
+    return {
+      ...review,
+      user: normalizeRelation(review.user),
+      product: normalizeRelation(review.product),
+      order: normalizeRelation(review.order),
+      helpful_count: reviewReactions.filter((reaction) => reaction.reaction_type === 'helpful').length,
+      not_helpful_count: reviewReactions.filter((reaction) => reaction.reaction_type === 'not_helpful').length,
+      user_reaction: null,
+    };
+  });
+
+  return { data: transformedReviews, error: null };
+}
+
+/**
  * Update a review
  */
 export async function updateReview(
@@ -118,7 +179,7 @@ export async function updateReview(
       updated_at: new Date().toISOString(),
     })
     .eq('id', reviewId)
-    .eq('user_id', userId) // Ensure user owns the review
+    .eq('user_id', userId)
     .select()
     .single();
 
@@ -133,7 +194,7 @@ export async function deleteReview(reviewId: string, userId: string): Promise<{ 
     .from('reviews')
     .delete()
     .eq('id', reviewId)
-    .eq('user_id', userId); // Ensure user owns the review
+    .eq('user_id', userId);
 
   return { error };
 }
@@ -145,7 +206,6 @@ export async function addReaction(
   userId: string,
   request: AddReactionRequest
 ): Promise<{ data: ReviewReaction | null; error: PostgrestError | null }> {
-  // Check if reaction already exists
   const { data: existingReaction } = await supabase
     .from('review_reactions')
     .select('*')
@@ -154,9 +214,7 @@ export async function addReaction(
     .single();
 
   if (existingReaction) {
-    // Update existing reaction
     if (existingReaction.reaction_type === request.reaction_type) {
-      // Remove reaction if clicking the same button
       const { data, error } = await supabase
         .from('review_reactions')
         .delete()
@@ -164,19 +222,17 @@ export async function addReaction(
         .select()
         .single();
       return { data, error };
-    } else {
-      // Update to new reaction type
-      const { data, error } = await supabase
-        .from('review_reactions')
-        .update({ reaction_type: request.reaction_type })
-        .eq('id', existingReaction.id)
-        .select()
-        .single();
-      return { data, error };
     }
+
+    const { data, error } = await supabase
+      .from('review_reactions')
+      .update({ reaction_type: request.reaction_type })
+      .eq('id', existingReaction.id)
+      .select()
+      .single();
+    return { data, error };
   }
 
-  // Create new reaction
   const { data, error } = await supabase
     .from('review_reactions')
     .insert({
@@ -219,11 +275,11 @@ export async function getReviewStats(productId: string): Promise<{ data: ReviewS
   const average_rating = sum / total_reviews;
 
   const rating_distribution = {
-    1: data.filter((r: { rating: number }) => r.rating === 1).length,
-    2: data.filter((r: { rating: number }) => r.rating === 2).length,
-    3: data.filter((r: { rating: number }) => r.rating === 3).length,
-    4: data.filter((r: { rating: number }) => r.rating === 4).length,
-    5: data.filter((r: { rating: number }) => r.rating === 5).length,
+    1: data.filter((review: { rating: number }) => review.rating === 1).length,
+    2: data.filter((review: { rating: number }) => review.rating === 2).length,
+    3: data.filter((review: { rating: number }) => review.rating === 3).length,
+    4: data.filter((review: { rating: number }) => review.rating === 4).length,
+    5: data.filter((review: { rating: number }) => review.rating === 5).length,
   };
 
   return {
@@ -231,9 +287,9 @@ export async function getReviewStats(productId: string): Promise<{ data: ReviewS
       average_rating: Math.round(average_rating * 10) / 10,
       total_reviews,
       rating_distribution,
-      },
-      error: null,
-    };
+    },
+    error: null,
+  };
 }
 
 /**
@@ -250,9 +306,9 @@ export async function getFitRatingStats(productId: string): Promise<{ data: FitR
     return { data: null, error };
   }
 
-  const runs_small = data?.filter((r: { fit_rating: number }) => r.fit_rating === 0).length || 0;
-  const true_to_size = data?.filter((r: { fit_rating: number }) => r.fit_rating === 50).length || 0;
-  const runs_large = data?.filter((r: { fit_rating: number }) => r.fit_rating === 100).length || 0;
+  const runs_small = data?.filter((review: { fit_rating: number }) => review.fit_rating === 0).length || 0;
+  const true_to_size = data?.filter((review: { fit_rating: number }) => review.fit_rating === 50).length || 0;
+  const runs_large = data?.filter((review: { fit_rating: number }) => review.fit_rating === 100).length || 0;
 
   return {
     data: {
@@ -271,7 +327,6 @@ export async function canUserReview(
   userId: string,
   productId: string
 ): Promise<{ canReview: boolean; orderId?: string; error: PostgrestError | Error | null }> {
-  // Find completed/delivered orders containing this product
   const { data: orders, error } = await supabase
     .from('orders')
     .select(`
@@ -288,10 +343,8 @@ export async function canUserReview(
     return { canReview: false, error };
   }
 
-  // Check if any order contains the product
-  const eligibleOrder = orders?.find((order: { id: string; order_status: string; items: { variant: { product_id: string } | { product_id: string }[] | null }[] }) => 
+  const eligibleOrder = orders?.find((order: { id: string; order_status: string; items: { variant: { product_id: string } | { product_id: string }[] | null }[] }) =>
     order.items?.some((item: { variant: { product_id: string } | { product_id: string }[] | null }) => {
-      // Handle both array and object response for variant relationship
       const variant = Array.isArray(item.variant) ? item.variant[0] : item.variant;
       return variant?.product_id === productId;
     })
@@ -301,7 +354,6 @@ export async function canUserReview(
     return { canReview: false, error: null };
   }
 
-  // Check if user already reviewed this product for this order
   const { data: existingReview } = await supabase
     .from('reviews')
     .select('id')

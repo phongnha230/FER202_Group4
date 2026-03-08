@@ -1,11 +1,25 @@
-import { Review as DBReview, Profile } from './database.types';
+import { Review as DBReview, Profile, Product, Order } from './database.types';
+
+export type ReviewUserSummary = Pick<Profile, 'id' | 'full_name' | 'avatar_url'> & {
+  phone?: string | null;
+  address?: string | null;
+};
+
+export type ReviewProductSummary = Pick<Product, 'id' | 'name' | 'slug' | 'image' | 'status'>;
+
+export type ReviewOrderSummary = Pick<Order, 'id' | 'order_status' | 'payment_status' | 'total_price' | 'created_at'>;
 
 // Extended Review with user profile
 export interface ReviewWithUser extends DBReview {
-  user?: Profile;
+  user?: ReviewUserSummary;
   helpful_count?: number;
   not_helpful_count?: number;
   user_reaction?: 'helpful' | 'not_helpful' | null;
+}
+
+export interface AdminReviewWithDetails extends ReviewWithUser {
+  product?: ReviewProductSummary;
+  order?: ReviewOrderSummary;
 }
 
 // Request type for creating a review

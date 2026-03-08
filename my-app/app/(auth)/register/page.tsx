@@ -35,7 +35,7 @@ export default function RegisterPage() {
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (password !== confirmPassword) {
             showToast('Passwords do not match', 'error');
             return;
@@ -45,20 +45,34 @@ export default function RegisterPage() {
         const supabase = createClient();
 
         try {
-            const { error: signUpError } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: { full_name: name },
-                    emailRedirectTo: `${location.origin}/api/auth/callback`,
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
+                body: JSON.stringify({
+                    name,
+                    email,
+                    password,
+                    confirmPassword,
+                }),
             });
 
-            if (signUpError) throw signUpError;
+            const result = await response.json();
 
-            setIsVerificationSent(true);
-            showToast('Registration successful! Please verify your email.', 'success');
+            if (!response.ok) {
+                throw new Error(result.error || 'Unable to create account');
+            }
 
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
+
+            if (signInError) throw signInError;
+
+            showToast('Registration successful!', 'success');
+            router.push('/');
         } catch (error) {
             showToast((error as Error).message, 'error');
         } finally {
@@ -124,7 +138,7 @@ export default function RegisterPage() {
 
             <div className="w-full max-w-4xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col lg:flex-row min-h-[600px] relative">
                  {/* Right Panel - Brand (Hidden on Mobile) - Mirrored Layout */}
-                 <motion.div 
+                 <motion.div
                     initial={{ x: 100, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ duration: 0.6, ease: "easeOut" }}
@@ -157,7 +171,7 @@ export default function RegisterPage() {
                 </motion.div>
 
                 {/* Left Panel - Register Form - Mirrored Layout */}
-                <motion.div 
+                <motion.div
                     initial={{ x: -100, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
@@ -259,8 +273,8 @@ export default function RegisterPage() {
                                         </div>
                                     </div>
 
-                                    <Button 
-                                        disabled={isLoading} 
+                                    <Button
+                                        disabled={isLoading}
                                         className="w-full h-12 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-bold tracking-widest uppercase shadow-lg shadow-slate-900/20 transition-all hover:scale-[1.02]"
                                     >
                                         {isLoading ? (
@@ -279,7 +293,7 @@ export default function RegisterPage() {
                                 <p className="text-slate-500">
                                     We&apos;ve sent a verification code to <span className="font-semibold text-slate-900">{email}</span>
                                 </p>
-                                
+
                                 <form onSubmit={handleVerifyOtp} className="space-y-4">
                                     <Input
                                         type="text"
@@ -289,7 +303,7 @@ export default function RegisterPage() {
                                         maxLength={6}
                                         className="text-center text-2xl tracking-[0.5em] h-14 font-mono rounded-full bg-slate-50 border-slate-200 focus:border-slate-900"
                                     />
-                                    <Button 
+                                    <Button
                                         className="w-full h-12 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-bold uppercase tracking-widest"
                                         disabled={isLoading}
                                     >
@@ -297,8 +311,8 @@ export default function RegisterPage() {
                                         Verify Account
                                     </Button>
                                 </form>
-                                
-                                <button 
+
+                                <button
                                     onClick={() => setIsVerificationSent(false)}
                                     className="text-sm font-bold text-slate-400 hover:text-slate-900 uppercase tracking-wide flex items-center justify-center w-full"
                                 >

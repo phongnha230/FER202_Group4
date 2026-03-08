@@ -22,6 +22,7 @@ import type { User as SupabaseUser, RealtimeChannel } from '@supabase/supabase-j
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
+  const [saleCount, setSaleCount] = useState(0);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const pathname = usePathname();
 
@@ -44,6 +45,35 @@ export default function Header() {
     return () => {
       mounted = false;
       subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const updateSaleCount = async () => {
+      try {
+        const [{ getProducts }, { adaptProductsToUI }] = await Promise.all([
+          import('@/lib/api/product.api'),
+          import('@/lib/adapters/product.adapter'),
+        ]);
+        const { data, error } = await getProducts({ status: 'active' });
+
+        if (mounted) {
+          setSaleCount(error ? 0 : adaptProductsToUI(data).filter((product) => product.salePrice).length);
+        }
+      } catch (err) {
+        console.error('Failed to fetch sale count:', err);
+        if (mounted) {
+          setSaleCount(0);
+        }
+      }
+    };
+
+    updateSaleCount();
+
+    return () => {
+      mounted = false;
     };
   }, []);
 
@@ -82,11 +112,12 @@ export default function Header() {
         try {
           const { getOrCreateCart } = await import('@/services/cart.service');
           const { data: cart } = await getOrCreateCart(user.id);
-          
+
           if (cart) {
             cartSubscription = supabase
               .channel(`cart-${cart.id}`)
-              .on('postgres_changes', 
+              .on(
+                'postgres_changes',
                 { event: '*', schema: 'public', table: 'cart_items', filter: `cart_id=eq.${cart.id}` },
                 () => {
                   updateCount();
@@ -122,7 +153,7 @@ export default function Header() {
     { href: "/", label: "Home" },
     { href: "/streetwear", label: "Streetwear" },
     { href: "/new-arrivals", label: "New Arrivals" },
-    { href: "/sale", label: "Sale" },
+    { href: "/sale", label: "Sale", badgeCount: saleCount },
   ];
 
   return (
@@ -142,12 +173,18 @@ export default function Header() {
                 href={link.href}
                 className={clsx(
                   'text-sm font-medium transition-colors relative group',
+                  link.badgeCount ? 'pr-7' : '',
                   pathname === link.href
                     ? 'text-blue-500'
                     : 'text-gray-700 hover:text-black'
                 )}
               >
                 {link.label}
+                {link.badgeCount ? (
+                  <span className="absolute -top-2 -right-3 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs text-white animate-in zoom-in spin-in-50 duration-300">
+                    {link.badgeCount}
+                  </span>
+                ) : null}
                 <span className="absolute left-0 -bottom-1 w-0 h-0.5 bg-red-500 transition-all duration-300 group-hover:w-full"></span>
               </Link>
             ))}
@@ -262,7 +299,7 @@ export default function Header() {
                   key={link.href}
                   href={link.href}
                   className={clsx(
-                    'text-sm font-medium transition-colors',
+                    'text-sm font-medium transition-colors flex items-center gap-2',
                     pathname === link.href
                       ? 'text-blue-500'
                       : 'text-gray-700 hover:text-black'
@@ -270,6 +307,11 @@ export default function Header() {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   {link.label}
+                  {link.badgeCount ? (
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs text-white">
+                      {link.badgeCount}
+                    </span>
+                  ) : null}
                 </Link>
               ))}
               {/* Mobile User Actions */}

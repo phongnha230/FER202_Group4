@@ -12,6 +12,17 @@ interface ProductReviewsProps {
     productId: string;
 }
 
+const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
+
+function formatReviewDate(dateString: string) {
+    return new Intl.DateTimeFormat('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        timeZone: VIETNAM_TIMEZONE,
+    }).format(new Date(dateString));
+}
+
 export default function ProductReviews({ productId }: ProductReviewsProps) {
     const [reviews, setReviews] = useState<ReviewWithUser[]>([]);
     const [loading, setLoading] = useState(true);
@@ -45,6 +56,33 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
         loadReviews();
     }, [productId]);
 
+    useEffect(() => {
+        if (typeof window === 'undefined' || reviews.length === 0) {
+            return;
+        }
+
+        const reviewHash = window.location.hash.replace('#', '');
+        if (!reviewHash.startsWith('review-')) {
+            return;
+        }
+
+        const reviewIndex = reviews.findIndex((review) => `review-${review.id}` === reviewHash);
+        if (reviewIndex === -1) {
+            return;
+        }
+
+        if (!isExpanded && reviewIndex >= 3) {
+            setIsExpanded(true);
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            document.getElementById(reviewHash)?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+            });
+        });
+    }, [reviews, isExpanded]);
     // Show 3 reviews initially, or all if expanded
     const displayedReviews = isExpanded ? reviews : reviews.slice(0, 3);
 
@@ -175,7 +213,11 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
 
             <div className="space-y-8">
                 {displayedReviews.map((review) => (
-                    <div key={review.id} className="border-b border-gray-100 pb-8 last:border-0">
+                    <div
+                        key={review.id}
+                        id={`review-${review.id}`}
+                        className="scroll-mt-28 border-b border-gray-100 pb-8 last:border-0"
+                    >
                         <div className="flex items-start gap-4">
                             <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 bg-gray-200">
                                 {review.user?.avatar_url ? (
@@ -201,7 +243,7 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <span className="text-xs text-gray-500">
-                                            {new Date(review.created_at).toLocaleDateString()}
+                                            {formatReviewDate(review.created_at)}
                                         </span>
                                         {isAuthenticated && user && review.user?.id === user.id && (
                                             <div className="flex items-center gap-2">
@@ -336,3 +378,4 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
         </div>
     );
 }
+

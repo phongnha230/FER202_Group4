@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
     ArrowLeft,
     Mail,
+    MapPin,
     Phone,
     Edit2,
     Wallet,
@@ -47,6 +48,17 @@ interface CustomerProfile {
     avgLtvGrowth: number;
 }
 
+interface CustomerProfileRow {
+    id: string;
+    full_name: string | null;
+    phone: string | null;
+    address: string | null;
+    street?: string | null;
+    city?: string | null;
+    country?: string | null;
+    avatar_url: string | null;
+    created_at: string;
+}
 interface OrderRow {
     id: string;
     displayId: string;
@@ -78,6 +90,38 @@ const formatOrderStatus = (status: string) => {
     return map[status] || status;
 };
 
+const VIETNAM_TIMEZONE = "Asia/Ho_Chi_Minh";
+
+const formatDateInVietnam = (
+    dateString: string,
+    locale: "vi-VN" | "en-US" = "en-US",
+    options: Intl.DateTimeFormatOptions = {}
+) => {
+    let safeString = dateString;
+    if (!safeString.endsWith("Z") && !safeString.includes("+") && safeString.includes("T")) {
+        safeString += "Z";
+    }
+
+    const date = new Date(safeString);
+    if (Number.isNaN(date.getTime())) return "N/A";
+
+    return new Intl.DateTimeFormat(locale, {
+        timeZone: VIETNAM_TIMEZONE,
+        ...options,
+    }).format(date);
+};
+
+const buildProfileAddress = (profile: CustomerProfileRow) => {
+    if (profile.address?.trim()) {
+        return profile.address.trim();
+    }
+
+    const fallbackAddress = [profile.street, profile.city, profile.country]
+        .map((part) => part?.trim())
+        .filter(Boolean);
+
+    return fallbackAddress.length > 0 ? fallbackAddress.join(", ") : null;
+};
 export default function CustomerDetailsPage() {
     const params = useParams();
     const id = params?.id as string | undefined;
@@ -97,13 +141,13 @@ export default function CustomerDetailsPage() {
                 // Fetch profile
                 const { data: profileData, error: profileError } = await supabase
                     .from("profiles")
-                    .select("id, full_name, phone, address, avatar_url, created_at")
+                    .select("id, full_name, phone, address, street, city, country, avatar_url, created_at")
                     .eq("id", id)
                     .single();
 
                 if (profileError) throw profileError;
                 if (!profileData) {
-                    setError("Không tìm thấy khách hàng");
+                    setError("Customer not found");
                     return;
                 }
 
@@ -119,7 +163,7 @@ export default function CustomerDetailsPage() {
                 const orderRows: OrderRow[] = (ordersData || []).map((o) => ({
                     id: o.id,
                     displayId: `#${o.id.slice(0, 8)}`,
-                    date: new Date(o.created_at).toLocaleDateString("en-US", {
+                    date: formatDateInVietnam(o.created_at, "en-US", {
                         year: "numeric",
                         month: "short",
                         day: "2-digit",
@@ -145,14 +189,16 @@ export default function CustomerDetailsPage() {
                     // Email is optional
                 }
 
+                const resolvedProfile = profileData as CustomerProfileRow;
+
                 setProfile({
-                    id: profileData.id,
-                    name: profileData.full_name || "Unknown",
+                    id: resolvedProfile.id,
+                    name: resolvedProfile.full_name || "Unknown",
                     email,
-                    phone: profileData.phone,
-                    address: profileData.address,
-                    avatar_url: profileData.avatar_url,
-                    joined: new Date(profileData.created_at).toLocaleDateString("en-US", {
+                    phone: resolvedProfile.phone,
+                    address: buildProfileAddress(resolvedProfile),
+                    avatar_url: resolvedProfile.avatar_url,
+                    joined: formatDateInVietnam(resolvedProfile.created_at, "en-US", {
                         year: "numeric",
                         month: "short",
                     }),
@@ -165,7 +211,7 @@ export default function CustomerDetailsPage() {
                 setOrders(orderRows);
             } catch (err) {
                 console.error("Error loading customer:", err);
-                setError(err instanceof Error ? err.message : "Lỗi tải dữ liệu");
+                setError(err instanceof Error ? err.message : "Failed to load customer data");
             } finally {
                 setLoading(false);
             }
@@ -190,7 +236,7 @@ export default function CustomerDetailsPage() {
                     <span className="text-sm font-medium">Back to Customers</span>
                 </Link>
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                    {error || "Không tìm thấy khách hàng"}
+                    {error || "Customer not found"}
                 </div>
             </div>
         );
@@ -244,9 +290,15 @@ export default function CustomerDetailsPage() {
                             )}
                             <div className="flex items-center gap-1.5">
                                 <Phone className="h-3.5 w-3.5" />
-                                {profile.phone || "—"}
+                                {profile.phone || "-"}
                             </div>
                         </div>
+                        {profile.address && (
+                            <div className="flex items-center justify-center gap-1.5 text-sm text-slate-500 md:justify-start">
+                                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                                <span className="max-w-2xl break-words">{profile.address}</span>
+                            </div>
+                        )}
                         <p className="text-xs text-slate-400 font-medium">Member since {profile.joined}</p>
                     </div>
                 </div>
@@ -339,7 +391,7 @@ export default function CustomerDetailsPage() {
                                     ) : (
                                         <TableRow>
                                             <TableCell colSpan={4} className="h-16 text-center text-slate-500 text-sm">
-                                                Chưa có đơn hàng
+                                                No orders yet
                                             </TableCell>
                                         </TableRow>
                                     )}

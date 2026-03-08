@@ -196,7 +196,12 @@ const getAvatarColor = (name: string) => {
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
 const formatOrderDateTimeVN = (dateString: string) => {
-    const date = new Date(dateString);
+    let safeString = dateString;
+    if (!safeString.endsWith('Z') && !safeString.includes('+') && safeString.includes('T')) {
+        safeString += 'Z';
+    }
+
+    const date = new Date(safeString);
     if (Number.isNaN(date.getTime())) return 'N/A';
 
     return new Intl.DateTimeFormat('vi-VN', {
