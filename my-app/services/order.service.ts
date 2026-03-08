@@ -186,7 +186,7 @@ export async function createOrder(
         user_id: userId,
         total_price: request.total_price,
         payment_method: request.payment_method,
-        payment_status: request.payment_method === 'cod' ? 'unpaid' : 'unpaid',
+        payment_status: 'unpaid',
         order_status: 'pending_payment',
       })
       .select()
