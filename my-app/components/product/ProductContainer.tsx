@@ -22,7 +22,6 @@ export default function ProductContainer({ product }: ProductContainerProps) {
                 product={product}
                 activeImage={activeImage}
                 selectedColor={selectedColor}
-                onSelectColor={setSelectedColor}
             />
             <ProductInfo
                 product={product}
