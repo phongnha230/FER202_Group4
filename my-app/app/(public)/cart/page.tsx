@@ -29,7 +29,7 @@ export default function CartPage() {
                             id: item.id,
                             productId: item.variant?.product_id || '',
                             name: item.product?.name || 'Unknown Product',
-                            price: item.variant?.price || 0,
+                            price: item.variant?.sale_price || item.variant?.price || 0,
                             image: item.product?.images?.find(img => img.is_main)?.image_url || item.product?.image || '',
                             color: item.variant?.color || '',
                             size: item.variant?.size || '',

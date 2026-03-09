@@ -65,6 +65,15 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
         setCurrentStock(matchingVariant ? matchingVariant.stock : 0);
     }, [selectedColor, selectedSize, variants]);
 
+    // Calculate current display price
+    const matchingVariant = variants.find(v => 
+        v.color?.toLowerCase().trim() === selectedColor?.toLowerCase().trim() && 
+        v.size?.toLowerCase().trim() === selectedSize?.toLowerCase().trim()
+    );
+
+    const displayPrice = matchingVariant?.price || product.price;
+    const displaySalePrice = matchingVariant?.sale_price !== undefined ? matchingVariant.sale_price : product.salePrice;
+
     const updateCartData = async () => {
         if (typeof window === 'undefined') return;
         
@@ -120,21 +129,21 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                 </h1>
 
                 <div className="flex items-center gap-4 mb-4">
-                    {product.salePrice ? (
+                    {displaySalePrice ? (
                         <div className="flex items-baseline gap-2">
                             <span className="text-2xl font-bold text-gray-900">
-                                ${product.salePrice.toFixed(2)}
+                                ${displaySalePrice.toFixed(2)}
                             </span>
                             <span className="text-lg text-gray-500 line-through">
-                                ${product.price.toFixed(2)}
+                                ${displayPrice.toFixed(2)}
                             </span>
                             <Badge variant="destructive" className="ml-2">
-                                SAVE {Math.round((1 - product.salePrice / product.price) * 100)}%
+                                SAVE {Math.round((1 - displaySalePrice / displayPrice) * 100)}%
                             </Badge>
                         </div>
                     ) : (
                         <span className="text-2xl font-bold text-gray-900">
-                            ${product.price.toFixed(2)}
+                            ${displayPrice.toFixed(2)}
                         </span>
                     )}
 
@@ -230,7 +239,7 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                                     id: data?.id || matchingVariant.id,
                                     productId: product.id,
                                     name: product.name,
-                                    price: matchingVariant.price || product.salePrice || product.price,
+                                    price: displaySalePrice || displayPrice,
                                     image: product.image,
                                     color: selectedColor,
                                     baseColor: product.colors?.[0], 
@@ -261,7 +270,7 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                                 id: matchingVariant.id, // Temporary ID (variant ID)
                                 productId: product.id,
                                 name: product.name,
-                                price: product.salePrice || product.price,
+                                price: displaySalePrice || displayPrice,
                                 image: product.image,
                                 color: selectedColor,
                                 baseColor: product.colors?.[0], 
@@ -342,7 +351,7 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                                 product_image: product.image,
                                 variant_color: selectedColor,
                                 variant_size: selectedSize,
-                                variant_price: matchingVariant.price,
+                                variant_price: displaySalePrice || displayPrice,
                                 quantity: 1,
                             };
                             

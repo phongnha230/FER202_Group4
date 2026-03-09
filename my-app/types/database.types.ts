@@ -37,6 +37,7 @@ export interface ProductVariant {
   size: string;
   color: string;
   price: number;
+  sale_price: number | null;
   stock: number;
 }
 

@@ -221,7 +221,7 @@ export async function getCartSummary(userId: string) {
   }
 
   const subtotal = cartWithItems.items.reduce((sum, item) => {
-    const price = item.variant?.price || 0;
+    const price = item.variant?.sale_price || item.variant?.price || 0;
     return sum + (price * item.quantity);
   }, 0);
 

@@ -1,15 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import {
     ArrowLeft,
     CloudUpload,
-    X,
     ChevronRight,
     Loader2,
     Check,
-    Star
+    ImageIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -26,25 +25,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 import { uploadFile } from "@/services/upload.service";
-import { createProduct, createProductVariants, getCategories, NewVariant } from "@/services/product.service";
+import { createProduct, createProductVariants, getCategories, NewVariant, createProductImages, NewProductImage } from "@/services/product.service";
 import { Category } from "@/types/database.types";
 
 // Define step types
-type Step = 1 | 2 | 3;
-
-interface UploadedImage {
-    id: string;
-    file?: File;
-    url: string;
-    name: string;
-    isPrimary: boolean;
-    isUploading?: boolean;
-    isUploaded?: boolean;
-    error?: string;
-}
+type Step = 1 | 2;
 
 interface ProductFormData {
     // Step 1: General Info
@@ -52,8 +39,7 @@ interface ProductFormData {
     description: string;
     category_id: number | null;
     slug: string;
-    // Step 2: Media (images stored separately)
-    // Step 3: Pricing & Inventory
+    // Step 2: Pricing & Inventory
     base_price: number;
     sale_price: number | null;
     featured: boolean;
@@ -66,13 +52,15 @@ interface VariantInput {
     size: string;
     color: string;
     price: number;
+    sale_price: number | null;
     stock: number;
+    imageFile?: File;
+    imageUrl?: string;
+    isUploading?: boolean;
 }
 
 export default function AddProductPage() {
     const router = useRouter();
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
     // Current step
     const [currentStep, setCurrentStep] = useState<Step>(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,20 +82,18 @@ export default function AddProductPage() {
         in_stock: true,
     });
 
-    // Uploaded images
-    const [images, setImages] = useState<UploadedImage[]>([]);
-    const [isDragging, setIsDragging] = useState(false);
-
     // Variants
     const [variants, setVariants] = useState<VariantInput[]>([{
         id: `variant-${Date.now()}`,
         size: "M",
         color: "Black",
         price: 0,
+        sale_price: null,
         stock: 0
     }]);
 
     const sizePresets = ["XS", "S", "M", "L", "XL", "XXL"];
+    const colorPresets = ["Black", "Olive", "White", "Orange", "Green", "Gray", "Navy", "Blue", "Beige", "Khaki"];
 
     // Load categories on mount
     React.useEffect(() => {
@@ -138,117 +124,24 @@ export default function AddProductPage() {
     // Calculate progress
     const getProgress = () => {
         switch (currentStep) {
-            case 1: return 33;
-            case 2: return 66;
-            case 3: return 100;
+            case 1: return 50;
+            case 2: return 100;
             default: return 0;
         }
     };
 
-    // Handle file selection
-    const handleFileSelect = useCallback(async (files: FileList | null) => {
-        if (!files || files.length === 0) return;
-
-        const newImages: UploadedImage[] = [];
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-
-            // Validate file type
-            if (!file.type.startsWith('image/')) {
-                continue;
-            }
-
-            // Validate file size (max 5MB)
-            if (file.size > 5 * 1024 * 1024) {
-                continue;
-            }
-
-            // Create preview URL
-            const previewUrl = URL.createObjectURL(file);
-
-            newImages.push({
-                id: `temp-${Date.now()}-${i}`,
-                file,
-                url: previewUrl,
-                name: file.name,
-                isPrimary: images.length === 0 && i === 0, // First image is primary
-                isUploading: false,
-                isUploaded: false,
-            });
+    // Handle variant image selection
+    const handleVariantImageSelect = (variantId: string, file: File) => {
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file');
+            return;
         }
-
-        setImages(prev => [...prev, ...newImages]);
-    }, [images.length]);
-
-    // Handle drag and drop
-    const handleDragOver = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(true);
-    }, []);
-
-    const handleDragLeave = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-    }, []);
-
-    const handleDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-        handleFileSelect(e.dataTransfer.files);
-    }, [handleFileSelect]);
-
-    // Remove image
-    const removeImage = useCallback((imageId: string) => {
-        setImages(prev => {
-            const filtered = prev.filter(img => img.id !== imageId);
-            // If we removed the primary image, set the first one as primary
-            if (filtered.length > 0 && !filtered.some(img => img.isPrimary)) {
-                filtered[0].isPrimary = true;
-            }
-            return filtered;
-        });
-    }, []);
-
-    // Set primary image
-    const setPrimaryImage = useCallback((imageId: string) => {
-        setImages(prev => prev.map(img => ({
-            ...img,
-            isPrimary: img.id === imageId
-        })));
-    }, []);
-
-    // Upload images to Supabase
-    const uploadImages = async (): Promise<string | null> => {
-        // Find the primary image
-        const primaryImage = images.find(img => img.isPrimary);
-        if (!primaryImage || !primaryImage.file) {
-            // If already uploaded, return the URL
-            if (primaryImage?.isUploaded && primaryImage.url) {
-                return primaryImage.url;
-            }
-            return null;
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image size must be less than 5MB');
+            return;
         }
-
-        // Upload primary image
-        setImages(prev => prev.map(img =>
-            img.id === primaryImage.id ? { ...img, isUploading: true } : img
-        ));
-
-        const { url, error } = await uploadFile(primaryImage.file, 'products');
-
-        if (error || !url) {
-            setImages(prev => prev.map(img =>
-                img.id === primaryImage.id ? { ...img, isUploading: false, error: 'Upload failed' } : img
-            ));
-            return null;
-        }
-
-        setImages(prev => prev.map(img =>
-            img.id === primaryImage.id ? { ...img, isUploading: false, isUploaded: true, url } : img
-        ));
-
-        return url;
+        const previewUrl = URL.createObjectURL(file);
+        setVariants(prev => prev.map(v => v.id === variantId ? { ...v, imageFile: file, imageUrl: previewUrl } : v));
     };
 
     // Validate current step
@@ -264,8 +157,6 @@ export default function AddProductPage() {
             case 1:
                 return formData.name.trim() !== "" && formData.description.trim() !== "";
             case 2:
-                return images.length > 0;
-            case 3:
                 return formData.base_price > 0 && variantsValid;
             default:
                 return false;
@@ -274,7 +165,7 @@ export default function AddProductPage() {
 
     // Handle next step
     const handleNext = () => {
-        if (validateStep(currentStep) && currentStep < 3) {
+        if (validateStep(currentStep) && currentStep < 2) {
             setCurrentStep((currentStep + 1) as Step);
         }
     };
@@ -288,13 +179,24 @@ export default function AddProductPage() {
 
     // Handle form submit
     const handleSubmit = async () => {
-        if (!validateStep(3)) return;
+        if (!validateStep(2)) return;
 
         setIsSubmitting(true);
 
         try {
-            // Upload images first
-            const imageUrl = await uploadImages();
+            // Re-map variants in case we need to upload their files right now
+            const updatedVariants = [...variants];
+            for (let i = 0; i < updatedVariants.length; i++) {
+                if (updatedVariants[i].imageFile) {
+                    const { url, error } = await uploadFile(updatedVariants[i].imageFile!, 'products');
+                    if (!error && url) {
+                        updatedVariants[i].imageUrl = url;
+                    }
+                }
+            }
+
+            // Get main image from first variant
+            const mainImageUrl = updatedVariants.find(v => v.imageUrl)?.imageUrl || null;
 
             // Create product
             const { data, error } = await createProduct({
@@ -307,25 +209,49 @@ export default function AddProductPage() {
                 featured: formData.featured,
                 is_new: formData.is_new,
                 in_stock: variants.some(v => v.stock > 0),
-                image: imageUrl || undefined,
+                image: mainImageUrl || undefined,
             });
 
             if (error) {
                 throw new Error(error.message);
             }
 
-            // Create variants
+            // Create variants & images
             if (data?.id) {
-                const variantPayload: NewVariant[] = variants.map(v => ({
+                const variantPayload: NewVariant[] = updatedVariants.map(v => ({
                     size: v.size.trim(),
                     color: v.color.trim() || "Default",
                     price: v.price > 0 ? v.price : formData.base_price,
+                    sale_price: v.sale_price !== null && v.sale_price >= 0 ? v.sale_price : null,
                     stock: Math.max(0, v.stock)
                 }));
 
                 const { success, error: variantError } = await createProductVariants(data.id, variantPayload);
                 if (!success || variantError) {
                     throw new Error(variantError?.message || "Failed to create product variants");
+                }
+
+                // Add variant specific images (unique by color)
+                const imagePayload: NewProductImage[] = [];
+                const colorImageMap = new Map<string, string>();
+                
+                for (const v of updatedVariants) {
+                    if (v.imageUrl && !v.imageUrl.startsWith('blob:') && v.color && !colorImageMap.has(v.color)) {
+                        colorImageMap.set(v.color, v.imageUrl);
+                        imagePayload.push({
+                            product_id: data.id,
+                            image_url: v.imageUrl,
+                            is_main: imagePayload.length === 0, // First uploaded variant image is main
+                            color: v.color
+                        });
+                    }
+                }
+
+                if (imagePayload.length > 0) {
+                    const { success: imgSuccess, error: imgError } = await createProductImages(imagePayload);
+                    if (!imgSuccess || imgError) {
+                        console.error("Failed to create product images:", imgError);
+                    }
                 }
             }
 
@@ -346,8 +272,6 @@ export default function AddProductPage() {
             case 1:
                 return renderGeneralInfo();
             case 2:
-                return renderMedia();
-            case 3:
                 return renderPricing();
             default:
                 return null;
@@ -423,134 +347,6 @@ export default function AddProductPage() {
         </Card>
     );
 
-    // Step 2: Media
-    const renderMedia = () => (
-        <Card>
-            <CardHeader>
-                <CardTitle className="text-lg font-bold">Product Media</CardTitle>
-                <CardDescription>Upload up to 10 high-resolution images for this product.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-
-                {/* File Upload Area */}
-                <div
-                    className={`border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center gap-4 transition-colors cursor-pointer group ${isDragging
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-slate-200 hover:bg-slate-50/50'
-                        }`}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                >
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => handleFileSelect(e.target.files)}
-                    />
-                    <div className="h-12 w-12 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
-                        <CloudUpload className="h-6 w-6" />
-                    </div>
-                    <div className="text-center space-y-1">
-                        <h3 className="font-bold text-slate-900">Drag & Drop product images here</h3>
-                        <p className="text-xs text-slate-500">Supports JPG, PNG, and WebP. Recommended size: 1200x1600px. Maximum file size 5MB.</p>
-                    </div>
-                    <Button type="button" className="bg-blue-600 hover:bg-blue-700 font-bold px-6">
-                        Browse Files
-                    </Button>
-                </div>
-
-                {/* Image Grid */}
-                {images.length > 0 && (
-                    <div className="space-y-3">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                            Uploaded Images ({images.length})
-                        </h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            {images.map((img) => (
-                                <div
-                                    key={img.id}
-                                    className="group relative aspect-[3/4] bg-slate-100 rounded-lg overflow-hidden border border-slate-200"
-                                >
-                                    {/* Image Preview */}
-                                    <Image
-                                        src={img.url}
-                                        alt={img.name}
-                                        fill
-                                        className="object-cover"
-                                        sizes="(max-width: 768px) 50vw, 25vw"
-                                    />
-
-                                    {/* Loading Overlay */}
-                                    {img.isUploading && (
-                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                            <Loader2 className="h-6 w-6 animate-spin text-white" />
-                                        </div>
-                                    )}
-
-                                    {/* Uploaded Check */}
-                                    {img.isUploaded && (
-                                        <div className="absolute top-2 right-2 h-6 w-6 bg-emerald-500 rounded-full flex items-center justify-center">
-                                            <Check className="h-3 w-3 text-white" />
-                                        </div>
-                                    )}
-
-                                    {/* Primary Badge */}
-                                    {img.isPrimary && (
-                                        <div className="absolute top-2 left-2">
-                                            <Badge className="bg-blue-600 hover:bg-blue-600 text-white text-[10px] uppercase font-bold tracking-wider rounded-sm px-1.5 py-0.5 border-0">
-                                                Primary
-                                            </Badge>
-                                        </div>
-                                    )}
-
-                                    {/* Hover Actions */}
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-                                        {!img.isPrimary && (
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setPrimaryImage(img.id);
-                                                }}
-                                                className="h-8 w-8 bg-white rounded-full flex items-center justify-center text-slate-700 hover:text-blue-600 transition-colors shadow-sm"
-                                                title="Set as primary"
-                                            >
-                                                <Star className="h-4 w-4" />
-                                            </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                removeImage(img.id);
-                                            }}
-                                            className="h-8 w-8 bg-white rounded-full flex items-center justify-center text-slate-700 hover:text-red-600 transition-colors shadow-sm"
-                                            title="Remove"
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </button>
-                                    </div>
-
-                                    {/* File Name */}
-                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
-                                        <span className="text-[10px] text-white font-normal truncate block">{img.name}</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <p className="text-xs text-slate-500">
-                            Click the star icon to set primary image. Primary image will be used as the main product image.
-                        </p>
-                    </div>
-                )}
-
-            </CardContent>
-        </Card>
-    );
 
     // Step 3: Pricing & Inventory
     const renderPricing = () => (
@@ -606,6 +402,7 @@ export default function AddProductPage() {
                                     size: sizePresets[2] || "M",
                                     color: "Black",
                                     price: formData.base_price,
+                                    sale_price: formData.sale_price,
                                     stock: 0
                                 }
                             ])}
@@ -615,16 +412,48 @@ export default function AddProductPage() {
                     </div>
 
                     <div className="rounded-lg border border-slate-200 overflow-hidden">
-                        <div className="grid grid-cols-5 gap-3 px-4 py-3 text-xs font-semibold text-slate-600 bg-slate-50">
+                        <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto] gap-3 px-4 py-3 text-xs font-semibold text-slate-600 bg-slate-50">
+                            <span>Image</span>
                             <span>Size</span>
                             <span>Color</span>
                             <span>Variant Price</span>
+                            <span>Sale Price</span>
                             <span>Stock</span>
                             <span className="text-right">Action</span>
                         </div>
                         <div className="divide-y">
                             {variants.map((variant) => (
-                                <div key={variant.id} className="grid grid-cols-5 gap-3 px-4 py-3 items-center">
+                                <div key={variant.id} className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto] gap-3 px-4 py-3 items-center">
+                                    {/* Image */}
+                                    <div className="relative flex items-center justify-center">
+                                        <input 
+                                            type="file" 
+                                            accept="image/jpeg,image/png,image/webp" 
+                                            className="hidden" 
+                                            id={`variant-img-${variant.id}`}
+                                            onChange={(e) => {
+                                                if (e.target.files?.[0]) {
+                                                    handleVariantImageSelect(variant.id, e.target.files[0]);
+                                                }
+                                            }}
+                                        />
+                                        <label 
+                                            htmlFor={`variant-img-${variant.id}`}
+                                            className="cursor-pointer group relative w-12 h-12 bg-slate-100 rounded-md border border-dashed border-slate-300 flex items-center justify-center overflow-hidden hover:bg-slate-200 transition-colors"
+                                        >
+                                            {variant.imageUrl ? (
+                                                <>
+                                                    <Image src={variant.imageUrl} alt="Variant" fill className="object-cover" sizes="48px" />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <CloudUpload className="h-4 w-4 text-white" />
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <ImageIcon className="h-4 w-4 text-slate-400 group-hover:text-slate-600" />
+                                            )}
+                                        </label>
+                                    </div>
+
                                     {/* Size */}
                                     <Select
                                         value={variant.size}
@@ -641,11 +470,24 @@ export default function AddProductPage() {
                                     </Select>
 
                                     {/* Color */}
-                                    <Input
+                                    <Select
                                         value={variant.color}
-                                        onChange={(e) => setVariants(prev => prev.map(v => v.id === variant.id ? { ...v, color: e.target.value } : v))}
-                                        placeholder="Color"
-                                    />
+                                        onValueChange={(val) => setVariants(prev => prev.map(v => v.id === variant.id ? { ...v, color: val } : v))}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Color" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {colorPresets.map(col => (
+                                                <SelectItem key={col} value={col}>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-3 h-3 rounded-full border border-slate-200" style={{ backgroundColor: col.toLowerCase() }} />
+                                                        <span>{col}</span>
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
 
                                     {/* Price */}
                                     <Input
@@ -655,6 +497,16 @@ export default function AddProductPage() {
                                         value={variant.price || ""}
                                         onChange={(e) => setVariants(prev => prev.map(v => v.id === variant.id ? { ...v, price: parseFloat(e.target.value) || 0 } : v))}
                                         placeholder={`Defaults to ${formData.base_price || 0}`}
+                                    />
+
+                                    {/* Sale Price */}
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={variant.sale_price !== null ? variant.sale_price : ""}
+                                        onChange={(e) => setVariants(prev => prev.map(v => v.id === variant.id ? { ...v, sale_price: e.target.value ? parseFloat(e.target.value) : null } : v))}
+                                        placeholder="No sale"
                                     />
 
                                     {/* Stock */}
@@ -749,10 +601,6 @@ export default function AddProductPage() {
                             </div>
                         )}
                         <div className="flex justify-between">
-                            <span className="text-slate-600">Images:</span>
-                            <span className="font-medium">{images.length} uploaded</span>
-                        </div>
-                        <div className="flex justify-between">
                             <span className="text-slate-600">Variants:</span>
                             <span className="font-medium">{variants.length} variants</span>
                         </div>
@@ -778,7 +626,7 @@ export default function AddProductPage() {
                     <span className="hover:text-slate-900 cursor-pointer">Add New Product</span>
                     <ChevronRight className="h-3 w-3" />
                     <span className="text-slate-900">
-                        {currentStep === 1 ? "General Info" : currentStep === 2 ? "Media" : "Pricing & Inventory"}
+                        {currentStep === 1 ? "General Info" : "Pricing & Inventory"}
                     </span>
                 </div>
                 <div className="flex items-center gap-3 mt-2">
@@ -790,7 +638,7 @@ export default function AddProductPage() {
                     <h1 className="text-2xl font-bold text-slate-900">Add New Product</h1>
                 </div>
                 <p className="text-slate-500 text-sm">
-                    Step {currentStep} of 3: {currentStep === 1 ? "General Information" : currentStep === 2 ? "Product Media" : "Pricing & Inventory"}
+                    Step {currentStep} of 2: {currentStep === 1 ? "General Information" : "Pricing & Inventory"}
                 </p>
             </div>
 
@@ -808,17 +656,8 @@ export default function AddProductPage() {
                         </button>
                         <button
                             onClick={() => validateStep(1) && setCurrentStep(2)}
-                            className={`flex items-center gap-2 ${currentStep === 2 ? 'text-blue-800 font-bold border-b-2 border-blue-800 pb-0.5' : currentStep > 2 ? 'text-blue-600' : 'text-slate-400'}`}
+                            className={`flex items-center gap-2 ${currentStep === 2 ? 'text-blue-800 font-bold border-b-2 border-blue-800 pb-0.5' : 'text-slate-400'}`}
                             disabled={!validateStep(1)}
-                        >
-                            {currentStep > 2 && <Check className="h-4 w-4 text-emerald-500" />}
-                            <span>Media</span>
-                            <ChevronRight className="h-4 w-4 text-slate-300" />
-                        </button>
-                        <button
-                            onClick={() => validateStep(1) && validateStep(2) && setCurrentStep(3)}
-                            className={`flex items-center gap-2 ${currentStep === 3 ? 'text-blue-800 font-bold border-b-2 border-blue-800 pb-0.5' : 'text-slate-400'}`}
-                            disabled={!validateStep(1) || !validateStep(2)}
                         >
                             <span>Pricing & Inventory</span>
                         </button>
@@ -848,10 +687,10 @@ export default function AddProductPage() {
                     {currentStep === 1 ? "Cancel" : "Back"}
                 </Button>
                 <div className="flex items-center gap-3">
-                    {currentStep === 3 ? (
+                    {currentStep === 2 ? (
                         <Button
                             onClick={handleSubmit}
-                            disabled={isSubmitting || !validateStep(3)}
+                            disabled={isSubmitting || !validateStep(2)}
                             className="bg-blue-600 hover:bg-blue-700 font-bold gap-2 px-6"
                         >
                             {isSubmitting ? (

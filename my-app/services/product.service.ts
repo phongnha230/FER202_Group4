@@ -273,12 +273,49 @@ export interface UpdateProductData {
 }
 
 /**
+ * Create product images in bulk
+ */
+export interface NewProductImage {
+  product_id: string;
+  image_url: string;
+  color?: string | null;
+  is_main: boolean;
+}
+
+export async function createProductImages(
+  images: NewProductImage[]
+): Promise<{ success: boolean; error: PostgrestError | null }> {
+  if (!images.length) {
+    return { success: true, error: null };
+  }
+
+  const { error } = await supabase
+    .from('product_images')
+    .insert(
+      images.map((img) => ({
+        product_id: img.product_id,
+        image_url: img.image_url,
+        color: img.color || null,
+        is_main: img.is_main,
+      }))
+    );
+
+  if (error) {
+    console.error('Error creating product images:', error);
+    return { success: false, error };
+  }
+
+  return { success: true, error: null };
+}
+
+/**
  * Create product variants in bulk
  */
 export interface NewVariant {
   size: string;
   color: string;
   price: number;
+  sale_price: number | null;
   stock: number;
 }
 
@@ -298,6 +335,7 @@ export async function createProductVariants(
         size: variant.size,
         color: variant.color,
         price: variant.price,
+        sale_price: variant.sale_price,
         stock: variant.stock,
       }))
     );
@@ -308,6 +346,117 @@ export async function createProductVariants(
   }
 
   return { success: true, error: null };
+}
+
+/**
+ * Update product variants (sync: upsert & delete)
+ */
+export async function updateProductVariants(
+  productId: string,
+  variants: (NewVariant & { id?: string })[]
+): Promise<{ success: boolean; error: PostgrestError | null }> {
+  try {
+    // 1. Get existing variants
+    const { data: existingVariants, error: fetchError } = await supabase
+      .from('product_variants')
+      .select('id')
+      .eq('product_id', productId);
+
+    if (fetchError) throw fetchError;
+
+    const existingIds = existingVariants?.map(v => v.id) || [];
+    const incomingIds = variants.map(v => v.id).filter(Boolean) as string[];
+
+    // 2. Delete variants that are no longer in the list
+    const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+    
+    if (idsToDelete.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('product_variants')
+        .delete()
+        .in('id', idsToDelete);
+      
+      if (deleteError) throw deleteError;
+    }
+
+    // 3. Upsert remaining/new variants
+    if (variants.length > 0) {
+      const variantsToUpsert = variants.map(v => ({
+        id: v.id || undefined, // undefined will let Supabase generate a new UUID on insert if omitted
+        product_id: productId,
+        size: v.size,
+        color: v.color,
+        price: v.price,
+        sale_price: v.sale_price,
+        stock: v.stock,
+      }));
+
+      const { error: upsertError } = await supabase
+        .from('product_variants')
+        .upsert(variantsToUpsert, { onConflict: 'id' });
+
+      if (upsertError) throw upsertError;
+    }
+
+    return { success: true, error: null };
+  } catch (error) {
+    console.error('Error syncing product variants:', error);
+    return { success: false, error: error as PostgrestError };
+  }
+}
+
+/**
+ * Update product images (sync: upsert & delete based on array)
+ */
+export async function updateProductImages(
+  productId: string,
+  images: (NewProductImage & { id?: string })[]
+): Promise<{ success: boolean; error: PostgrestError | null }> {
+  try {
+    // 1. Get existing images
+    const { data: existingImages, error: fetchError } = await supabase
+      .from('product_images')
+      .select('id')
+      .eq('product_id', productId);
+
+    if (fetchError) throw fetchError;
+
+    const existingIds = existingImages?.map(i => i.id) || [];
+    const incomingIds = images.map(i => i.id).filter(Boolean) as string[];
+
+    // 2. Delete missing images
+    const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+    if (idsToDelete.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('product_images')
+        .delete()
+        .in('id', idsToDelete);
+      
+      if (deleteError) throw deleteError;
+    }
+
+    // 3. Upsert images
+    if (images.length > 0) {
+      const imagesToUpsert = images.map(img => ({
+        id: img.id || undefined,
+        product_id: productId,
+        image_url: img.image_url,
+        is_main: img.is_main,
+        color: img.color
+      }));
+
+      const { error: upsertError } = await supabase
+        .from('product_images')
+        .upsert(imagesToUpsert, { onConflict: 'id' });
+
+      if (upsertError) throw upsertError;
+    }
+
+    return { success: true, error: null };
+  } catch (error) {
+    console.error('Error syncing product images:', error);
+    return { success: false, error: error as PostgrestError };
+  }
 }
 
 export async function updateProduct(
