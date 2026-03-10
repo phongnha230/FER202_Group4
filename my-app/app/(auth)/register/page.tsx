@@ -24,7 +24,7 @@ export default function RegisterPage() {
 
     useEffect(() => {
         if (toast) {
-            const timer = setTimeout(() => setToast(null), 3000);
+            const timer = setTimeout(() => setToast(null), 6000);
             return () => clearTimeout(timer);
         }
     }, [toast]);
@@ -64,15 +64,12 @@ export default function RegisterPage() {
                 throw new Error(result.error || 'Unable to create account');
             }
 
-            const { error: signInError } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
-
-            if (signInError) throw signInError;
-
-            showToast('Registration successful!', 'success');
-            router.push('/');
+            showToast('Account created! Please sign in.', 'success');
+            
+            // Add 5-second delay before redirection
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            
+            router.push('/login');
         } catch (error) {
             showToast((error as Error).message, 'error');
         } finally {
@@ -127,10 +124,13 @@ export default function RegisterPage() {
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-full shadow-lg text-white font-medium ${
-                            toast.type === 'success' ? 'bg-slate-900' : 'bg-red-500'
+                        className={`fixed top-6 right-6 z-[100] px-8 py-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] text-white font-bold flex items-center gap-3 border-2 ${
+                            toast.type === 'success' 
+                            ? 'bg-slate-900 border-cyan-400/30' 
+                            : 'bg-red-500 border-white/20'
                         }`}
                     >
+                        {toast.type === 'success' && <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />}
                         {toast.message}
                     </motion.div>
                 )}
