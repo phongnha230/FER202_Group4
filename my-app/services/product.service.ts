@@ -72,7 +72,7 @@ export async function getProducts(filters?: ProductFilters): Promise<{ data: Pro
     }
 
     if (filters?.search) {
-      query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+      query = query.ilike('name', `%${filters.search}%`);
     }
 
     if (filters?.limit) {
