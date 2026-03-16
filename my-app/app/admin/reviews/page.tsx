@@ -45,13 +45,14 @@ const VIETNAM_TIMEZONE = "Asia/Ho_Chi_Minh";
 
 function formatDate(dateString: string) {
     return new Intl.DateTimeFormat("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+        hour12: false,
         timeZone: VIETNAM_TIMEZONE,
-    }).format(new Date(dateString));
+    }).format(new Date(dateString)).replace(',', '');
 }
 
 function renderStars(rating: number) {
