@@ -74,8 +74,10 @@ async function getCategoryCountsServer(): Promise<Map<string, number>> {
         .eq('status', 'active');
 
     const counts = new Map<string, number>();
-    (data || []).forEach((p: { category?: { name?: string } | null }) => {
-        const name = p.category?.name?.trim();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (data || []).forEach((p: any) => {
+        const cat = p.category;
+        const name = (Array.isArray(cat) ? cat[0]?.name : cat?.name)?.trim();
         if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
     });
     return counts;
