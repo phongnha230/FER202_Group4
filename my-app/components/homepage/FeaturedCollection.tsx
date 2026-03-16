@@ -66,8 +66,26 @@ async function getFeaturedProductsServer(limit = 10) {
     return { data: data || [], error };
 }
 
+async function getCategoryCountsServer(): Promise<Map<string, number>> {
+    const supabase = await createClient();
+    const { data } = await supabase
+        .from('products')
+        .select('category:categories(name)')
+        .eq('status', 'active');
+
+    const counts = new Map<string, number>();
+    (data || []).forEach((p: { category?: { name?: string } | null }) => {
+        const name = p.category?.name?.trim();
+        if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+    });
+    return counts;
+}
+
 export default async function FeaturedCollection() {
-    const { data, error } = await getFeaturedProductsServer(10);
+    const [{ data, error }, categoryCounts] = await Promise.all([
+        getFeaturedProductsServer(10),
+        getCategoryCountsServer(),
+    ]);
 
     if (error) {
         console.error('Error loading featured products:', error);
@@ -86,15 +104,11 @@ export default async function FeaturedCollection() {
         const categoryName = product.category?.trim();
         if (!categoryName) return;
 
-        const existing = categoryMap.get(categoryName);
-        if (existing) {
-            existing.count += 1;
-            return;
-        }
+        if (categoryMap.has(categoryName)) return;
 
         categoryMap.set(categoryName, {
             name: categoryName,
-            count: 1,
+            count: categoryCounts.get(categoryName) ?? 0,
             image: pickLifestyleImage(categoryName, product.image),
             overlayLabel: getOverlayLabel(categoryName),
             imageClassName: getImageClassName(categoryName),
