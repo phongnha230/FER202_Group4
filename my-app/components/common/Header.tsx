@@ -1,9 +1,9 @@
 "use client";
 
 import Link from 'next/link';
-import { ShoppingCart, Search, Menu, User, X, ShoppingBag, LogOut } from 'lucide-react';
+import { ShoppingCart, Menu, User, X, ShoppingBag, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import SearchBox from '@/components/common/SearchBox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -194,10 +194,7 @@ export default function Header() {
           <div className="flex items-center space-x-4">
             {/* Search */}
             <div className="hidden lg:flex items-center">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search products..." className="pl-8 w-64" />
-              </div>
+              <SearchBox inputClassName="w-64" />
             </div>
 
             {/* User Account / Dropdown */}
@@ -346,10 +343,7 @@ export default function Header() {
                </div>
 
               <div className="pt-4 border-t">
-                <Input
-                  placeholder="Search products..."
-                  className="w-full"
-                />
+                <SearchBox inputClassName="w-full" onNavigate={() => setMobileMenuOpen(false)} />
               </div>
             </nav>
           </div>
