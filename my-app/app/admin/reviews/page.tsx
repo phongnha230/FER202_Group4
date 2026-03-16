@@ -43,7 +43,26 @@ const FIT_LABELS: Record<string, string> = {
 
 const VIETNAM_TIMEZONE = "Asia/Ho_Chi_Minh";
 
+function parseSupabaseTimestamp(value: string): Date {
+    let safeValue = value.trim();
+
+    if (safeValue.includes(" ") && !safeValue.includes("T")) {
+        safeValue = safeValue.replace(" ", "T");
+    }
+
+    if (!safeValue.endsWith("Z") && !safeValue.includes("+") && safeValue.includes("T")) {
+        safeValue += "Z";
+    }
+
+    return new Date(safeValue);
+}
+
 function formatDate(dateString: string) {
+    const date = parseSupabaseTimestamp(dateString);
+    if (Number.isNaN(date.getTime())) {
+        return "N/A";
+    }
+
     return new Intl.DateTimeFormat("vi-VN", {
         hour: "2-digit",
         minute: "2-digit",
@@ -52,7 +71,7 @@ function formatDate(dateString: string) {
         year: "numeric",
         hour12: false,
         timeZone: VIETNAM_TIMEZONE,
-    }).format(new Date(dateString)).replace(',', '');
+    }).format(date).replace(',', '');
 }
 
 function renderStars(rating: number) {
@@ -127,7 +146,7 @@ export default function AdminReviewsPage() {
 
         const last30Days = new Date();
         last30Days.setDate(last30Days.getDate() - 30);
-        const recentReviews = reviews.filter((review) => new Date(review.created_at) >= last30Days).length;
+        const recentReviews = reviews.filter((review) => parseSupabaseTimestamp(review.created_at) >= last30Days).length;
 
         return {
             totalReviews,

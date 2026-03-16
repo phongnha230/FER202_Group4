@@ -14,7 +14,26 @@ interface ProductReviewsProps {
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
+function parseSupabaseTimestamp(value: string): Date {
+    let safeValue = value.trim();
+
+    if (safeValue.includes(' ') && !safeValue.includes('T')) {
+        safeValue = safeValue.replace(' ', 'T');
+    }
+
+    if (!safeValue.endsWith('Z') && !safeValue.includes('+') && safeValue.includes('T')) {
+        safeValue += 'Z';
+    }
+
+    return new Date(safeValue);
+}
+
 function formatReviewDate(dateString: string) {
+    const date = parseSupabaseTimestamp(dateString);
+    if (Number.isNaN(date.getTime())) {
+        return 'N/A';
+    }
+
     return new Intl.DateTimeFormat('vi-VN', {
         hour: '2-digit',
         minute: '2-digit',
@@ -23,7 +42,7 @@ function formatReviewDate(dateString: string) {
         year: 'numeric',
         hour12: false,
         timeZone: VIETNAM_TIMEZONE,
-    }).format(new Date(dateString)).replace(',', '');
+    }).format(date).replace(',', '');
 }
 
 export default function ProductReviews({ productId }: ProductReviewsProps) {
