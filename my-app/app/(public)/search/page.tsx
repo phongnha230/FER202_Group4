@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Loader2 as SuspenseLoader } from "lucide-react";
 import ProductCard from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +18,7 @@ import { Loader2, SearchX } from "lucide-react";
 
 type SortKey = "newest" | "priceAsc" | "priceDesc" | "nameAsc";
 
-export default function SearchPage() {
+function SearchResults() {
     const searchParams = useSearchParams();
     const query = searchParams.get("q") ?? "";
 
@@ -200,5 +201,19 @@ export default function SearchPage() {
                 )}
             </div>
         </main>
+    );
+}
+
+export default function SearchPage() {
+    return (
+        <Suspense fallback={
+            <main className="py-10 md:py-12">
+                <div className="container-custom page-container flex items-center justify-center min-h-[400px]">
+                    <SuspenseLoader className="w-8 h-8 animate-spin text-gray-400" />
+                </div>
+            </main>
+        }>
+            <SearchResults />
+        </Suspense>
     );
 }
