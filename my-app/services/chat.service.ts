@@ -40,6 +40,19 @@ export async function getSession(sessionId: string): Promise<ChatSession | null>
   return data;
 }
 
+export async function getLatestSessionByUser(userId: string): Promise<ChatSession | null> {
+  const { data, error } = await supabaseAdmin
+    .from('ai_chat_sessions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data;
+}
+
 export async function getMessages(sessionId: string): Promise<ChatMessage[]> {
   const { data, error } = await supabaseAdmin
     .from('ai_chat_messages')

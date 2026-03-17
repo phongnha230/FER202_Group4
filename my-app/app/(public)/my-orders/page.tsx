@@ -672,7 +672,7 @@ export default function MyOrdersPage() {
 
             {/* Order Details Modal */}
             <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
-                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-[calc(100vw-1rem)] max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-bold">Order Details</DialogTitle>
                         <DialogDescription>
@@ -685,8 +685,8 @@ export default function MyOrdersPage() {
                             {/* All Items */}
                             <div className="space-y-3">
                                 {selectedOrder.items.map((item, idx) => (
-                                    <div key={idx} className="flex gap-4 p-4 bg-gray-50 rounded-lg">
-                                        <div className="relative h-20 w-16 bg-white rounded overflow-hidden flex-shrink-0">
+                                    <div key={idx} className="flex items-start gap-3 rounded-lg bg-gray-50 p-3 sm:gap-4 sm:p-4">
+                                        <div className="relative h-16 w-12 flex-shrink-0 overflow-hidden rounded bg-white sm:h-20 sm:w-16">
                                             <Image
                                                 src={item.image}
                                                 alt={item.name}
@@ -695,8 +695,8 @@ export default function MyOrdersPage() {
                                                 className="object-cover"
                                             />
                                         </div>
-                                        <div className="flex-1">
-                                            <h4 className="font-bold">{item.name}</h4>
+                                        <div className="min-w-0 flex-1">
+                                            <h4 className="font-bold leading-tight break-words">{item.name}</h4>
                                             <p className="text-sm text-muted-foreground">
                                                 Size: {item.size} • Color: {item.color}
                                             </p>
@@ -704,7 +704,7 @@ export default function MyOrdersPage() {
                                                 Qty: {item.quantity}
                                             </p>
                                         </div>
-                                        <div className="text-right">
+                                        <div className="shrink-0 text-right">
                                             <span className="font-bold">${(item.price * item.quantity).toFixed(2)}</span>
                                             {item.quantity > 1 && (
                                                 <p className="text-xs text-muted-foreground">${item.price.toFixed(2)} each</p>
@@ -716,10 +716,10 @@ export default function MyOrdersPage() {
 
                             {/* Order Info */}
                             <div className="space-y-3">
-                                <div className="flex items-center gap-3 text-sm">
+                                <div className="flex items-start gap-3 text-sm">
                                     <Calendar className="w-4 h-4 text-gray-400" />
                                     <span className="text-muted-foreground">Order Date:</span>
-                                    <span className="font-medium">
+                                    <span className="min-w-0 font-medium break-words">
                                         {formatDateInVietnam(selectedOrder.date, 'vi-VN', {
                                             day: '2-digit',
                                             month: '2-digit', 
@@ -730,7 +730,7 @@ export default function MyOrdersPage() {
                                     </span>
                                 </div>
                                 
-                                <div className="flex items-center gap-3 text-sm">
+                                <div className="flex items-start gap-3 text-sm">
                                     <CreditCard className="w-4 h-4 text-gray-400" />
                                     <span className="text-muted-foreground">Payment:</span>
                                     <span className="font-medium uppercase">{selectedOrder.paymentMethod}</span>
@@ -742,7 +742,7 @@ export default function MyOrdersPage() {
                                     </span>
                                 </div>
 
-                                <div className="flex items-center gap-3 text-sm">
+                                <div className="flex items-start gap-3 text-sm">
                                     <Package className="w-4 h-4 text-gray-400" />
                                     <span className="text-muted-foreground">Status:</span>
                                     <span className={clsx(
@@ -764,15 +764,15 @@ export default function MyOrdersPage() {
                                     <div className="space-y-2 text-sm">
                                         <div className="flex items-start gap-3">
                                             <User className="w-4 h-4 text-gray-400 mt-0.5" />
-                                            <span>{selectedOrder.shipping.receiver_name}</span>
+                                            <span className="min-w-0 break-words">{selectedOrder.shipping.receiver_name}</span>
                                         </div>
                                         <div className="flex items-start gap-3">
                                             <Phone className="w-4 h-4 text-gray-400 mt-0.5" />
-                                            <span>{selectedOrder.shipping.receiver_phone}</span>
+                                            <span className="min-w-0 break-words">{selectedOrder.shipping.receiver_phone}</span>
                                         </div>
                                         <div className="flex items-start gap-3">
                                             <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
-                                            <span>{selectedOrder.shipping.receiver_address}</span>
+                                            <span className="min-w-0 break-words">{selectedOrder.shipping.receiver_address}</span>
                                         </div>
                                     </div>
                                 ) : (
@@ -781,26 +781,26 @@ export default function MyOrdersPage() {
                             </div>
 
                             {/* Price Breakdown */}
-                            <div className="border-t pt-4 space-y-2">
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-muted-foreground">Subtotal ({getTotalItemsCount(selectedOrder.items)} items)</span>
-                                    <span className="font-medium">${getItemsSubtotal(selectedOrder.items).toFixed(2)}</span>
+                            <div className="space-y-2 border-t pt-4">
+                                <div className="flex items-center justify-between gap-3 text-sm">
+                                    <span className="min-w-0 text-muted-foreground">Subtotal ({getTotalItemsCount(selectedOrder.items)} items)</span>
+                                    <span className="shrink-0 font-medium">${getItemsSubtotal(selectedOrder.items).toFixed(2)}</span>
                                 </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-muted-foreground">Shipping Fee</span>
-                                    <span className="font-medium">
+                                <div className="flex items-center justify-between gap-3 text-sm">
+                                    <span className="min-w-0 text-muted-foreground">Shipping Fee</span>
+                                    <span className="shrink-0 font-medium">
                                         {getShippingFee(selectedOrder) 
                                             ? `$${getShippingFee(selectedOrder).toFixed(2)}` 
                                             : 'Free'}
                                     </span>
                                 </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-muted-foreground">Tax</span>
-                                    <span className="font-medium">${getTaxAmount(selectedOrder).toFixed(2)}</span>
+                                <div className="flex items-center justify-between gap-3 text-sm">
+                                    <span className="min-w-0 text-muted-foreground">Tax</span>
+                                    <span className="shrink-0 font-medium">${getTaxAmount(selectedOrder).toFixed(2)}</span>
                                 </div>
-                                <div className="border-t pt-2 flex justify-between items-center">
+                                <div className="flex items-center justify-between border-t pt-2">
                                     <span className="font-bold">Total</span>
-                                    <span className="text-xl font-bold">${selectedOrder.totalPrice.toFixed(2)}</span>
+                                    <span className="shrink-0 text-xl font-bold">${selectedOrder.totalPrice.toFixed(2)}</span>
                                 </div>
                             </div>
                         </div>
