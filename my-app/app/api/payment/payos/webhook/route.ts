@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import payos from '@/lib/payos';
+import { getPayOS } from '@/lib/payos';
 import { createNotification } from '@/services/notification.service';
 import { sendOrderEmail } from '@/lib/notifications/send-order-email';
 
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // Verify PayOS webhook signature and extract data
-    const webhookData = await payos.webhooks.verify(body);
+    const webhookData = await getPayOS().webhooks.verify(body);
 
     const { orderCode, code, reference } = webhookData;
     const isSuccess = code === '00';

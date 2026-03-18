@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import payos from '@/lib/payos';
+import { getPayOS } from '@/lib/payos';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
-    const paymentLink = await payos.paymentRequests.create({
+    const paymentLink = await getPayOS().paymentRequests.create({
       orderCode,
       amount: amountVND,
       // PayOS description max 25 chars
