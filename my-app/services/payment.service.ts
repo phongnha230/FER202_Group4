@@ -57,29 +57,29 @@ export async function getPaymentByOrderId(orderId: string): Promise<{ data: Paym
  * This is a placeholder for actual gateway integration (Momo, VNPay, Credit Card, etc.)
  */
 export async function initializePayment(
-    orderId: string, 
-    method: 'momo' | 'vnpay' | 'card'
+    orderId: string,
+    method: 'momo' | 'vnpay' | 'card' | 'payos'
 ): Promise<{ paymentUrl?: string; error: Error | null }> {
-    // Mock logic for online payment
-    // In a real app, this would call the backend API to generate a payment URL
-    console.log(`Initializing ${method} payment for order ${orderId}`);
-    
-    // Map method to display name for mock page
-    const methodNames: Record<string, string> = {
-        'momo': 'MoMo',
-        'vnpay': 'VNPay',
-        'card': 'Credit Card',
-    };
-    
-    console.log(`Payment method: ${methodNames[method]}`);
-    
-    // Simulate a payment URL
-    // In production, this would redirect to actual payment gateway:
-    // - VNPay: https://sandbox.vnpayment.vn/paymentv2/...
-    // - MoMo: https://test-payment.momo.vn/...
-    // - Card: Stripe/PayOS checkout session
-    return { 
+    if (method === 'payos') {
+        try {
+            const response = await fetch('/api/payment/payos/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                return { error: new Error(data.error || 'Failed to create PayOS payment link') };
+            }
+            return { paymentUrl: data.checkoutUrl, error: null };
+        } catch (err) {
+            return { error: err as Error };
+        }
+    }
+
+    // Mock fallback for other methods (momo, vnpay, card)
+    return {
         paymentUrl: `/checkout/payment-mock?orderId=${orderId}&method=${method}`,
-        error: null 
+        error: null,
     };
 }

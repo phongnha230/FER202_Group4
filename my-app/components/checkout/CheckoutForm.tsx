@@ -22,8 +22,8 @@ export default function CheckoutForm() {
     }, [user?.email, formData.email, setFormData]);
 
     const handlePaymentMethodChange = (value: string) => {
-        setFormData({ 
-            paymentMethod: value as 'card' | 'vnpay' | 'momo' | 'cod' 
+        setFormData({
+            paymentMethod: value as 'card' | 'vnpay' | 'momo' | 'cod' | 'payos'
         });
     };
 
@@ -223,6 +223,15 @@ export default function CheckoutForm() {
                         <Label htmlFor="momo" className="font-semibold flex-1 flex items-center cursor-pointer">
                             Ví MoMo
                             <QrCode className="ml-auto h-5 w-5 text-[#a50064]" />
+                        </Label>
+                    </div>
+
+                    {/* PayOS */}
+                    <div className="border rounded-lg p-4 flex items-center space-x-3 [&:has(:checked)]:border-black [&:has(:checked)]:bg-gray-50">
+                        <RadioGroupItem value="payos" id="payos" />
+                        <Label htmlFor="payos" className="font-semibold flex-1 flex items-center cursor-pointer">
+                            PayOS (Thẻ ngân hàng / QR)
+                            <QrCode className="ml-auto h-5 w-5 text-blue-600" />
                         </Label>
                     </div>
 

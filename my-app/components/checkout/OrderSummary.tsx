@@ -218,10 +218,11 @@ export default function OrderSummary() {
             // If online payment, initialize payment gateway
             if (paymentMethod === 'online') {
                 console.log('Initializing online payment...');
-                const paymentMethodMap: Record<string, 'momo' | 'vnpay' | 'card'> = {
+                const paymentMethodMap: Record<string, 'momo' | 'vnpay' | 'card' | 'payos'> = {
                     'momo': 'momo',
                     'vnpay': 'vnpay',
                     'card': 'card',
+                    'payos': 'payos',
                 };
 
                 const gatewayMethod = paymentMethodMap[formData.paymentMethod] || 'vnpay';

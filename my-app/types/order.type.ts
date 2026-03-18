@@ -21,7 +21,7 @@ export interface CreateOrderRequest {
   total_price: number;
   payment_method: 'online' | 'cod';
   /** Gateway for online payment: momo, vnpay, card. Required when payment_method is 'online'. */
-  payment_gateway?: 'momo' | 'vnpay' | 'card';
+  payment_gateway?: 'momo' | 'vnpay' | 'card' | 'payos';
   shipping_info: {
     receiver_name: string;
     receiver_phone: string;

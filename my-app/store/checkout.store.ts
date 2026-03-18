@@ -9,7 +9,7 @@ interface CheckoutFormData {
   address: string;
   city: string;
   country: string;
-  paymentMethod: 'card' | 'vnpay' | 'momo' | 'cod';
+  paymentMethod: 'card' | 'vnpay' | 'momo' | 'cod' | 'payos';
   cardNumber?: string;
   expiry?: string;
   cvc?: string;

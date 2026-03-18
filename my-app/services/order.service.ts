@@ -21,8 +21,8 @@ interface CreateBuyNowOrderRequest {
   quantity: number;
   total_price: number;
   payment_method: 'online' | 'cod';
-  /** Gateway for online payment: momo, vnpay, card. Required when payment_method is 'online'. */
-  payment_gateway?: 'momo' | 'vnpay' | 'card';
+  /** Gateway for online payment: momo, vnpay, card, payos. Required when payment_method is 'online'. */
+  payment_gateway?: 'momo' | 'vnpay' | 'card' | 'payos';
   shipping_info: {
     receiver_name: string;
     receiver_phone: string;
@@ -117,9 +117,11 @@ export async function createBuyNowOrder(
     }
 
     // 7. Create Payment Record (payments.method: momo|vnpay|card|cod)
+    // Map 'payos' to 'card' since the DB enum doesn't have 'payos'
+    const rawGateway = request.payment_gateway || 'vnpay';
     const paymentMethodForDb = request.payment_method === 'cod'
       ? 'cod'
-      : (request.payment_gateway || 'vnpay');
+      : rawGateway === 'payos' ? 'card' : rawGateway;
     await client
       .from('payments')
       .insert({
@@ -238,9 +240,11 @@ export async function createOrder(
     }
 
     // 7. Create Payment Record (payments.method: momo|vnpay|card|cod)
+    // Map 'payos' to 'card' since the DB enum doesn't have 'payos'
+    const rawGateway = request.payment_gateway || 'vnpay';
     const paymentMethodForDb = request.payment_method === 'cod'
       ? 'cod'
-      : (request.payment_gateway || 'vnpay');
+      : rawGateway === 'payos' ? 'card' : rawGateway;
     await client
       .from('payments')
       .insert({
