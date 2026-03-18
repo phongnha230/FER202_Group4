@@ -299,7 +299,11 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                     size="lg"
                     disabled={variants.length === 0 || currentStock === 0 || currentStock === null}
                     onClick={async (e) => {
-                        const { user, isAuthenticated } = useUserStore.getState();
+                        const { user, isAuthenticated, isLoading } = useUserStore.getState();
+                        if (isLoading) {
+                            alert('Please wait while we verify your session...');
+                            return;
+                        }
                          if (!isAuthenticated || !user) {
                             if (window.confirm("You need to login to proceed. Do you want to login now?")) {
                                 const next = typeof window !== 'undefined' ? window.location.pathname : '/';
