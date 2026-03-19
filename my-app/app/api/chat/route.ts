@@ -66,6 +66,7 @@ function isSaleIntent(text: string): boolean {
   return /(giam gia|sale|khuyen mai|uu dai|discount)/i.test(normalized);
 }
 
+// Returns budget in USD to match DB price unit
 function extractBudget(text: string): number | null {
   const normalized = normalizeForMatch(text);
 
@@ -73,7 +74,7 @@ function extractBudget(text: string): number | null {
   if (prefixUsd) {
     const usd = Number.parseFloat(prefixUsd[1].replace(',', '.'));
     if (!Number.isNaN(usd)) {
-      return Math.round(usd * 25_000);
+      return usd;
     }
   }
 
@@ -86,28 +87,46 @@ function extractBudget(text: string): number | null {
   if (Number.isNaN(amount)) return null;
 
   const unit = (suffix[2] || 'k').toLowerCase();
-  if (unit === '$' || unit === 'usd' || unit === 'dollar') return Math.round(amount * 25_000);
-  if (unit === 'trieu' || unit === 'tr') return Math.round(amount * 1_000_000);
-  if (unit === 'k' || unit === 'nghin') return Math.round(amount * 1_000);
-  if (unit === 'vnd' || unit === 'd') return Math.round(amount);
-  return Math.round(amount * 1_000);
+  // Convert VND to USD (approx 25,000 VND = $1)
+  if (unit === '$' || unit === 'usd' || unit === 'dollar') return amount;
+  if (unit === 'trieu' || unit === 'tr') return Math.round((amount * 1_000_000) / 25_000);
+  if (unit === 'k' || unit === 'nghin') return Math.round((amount * 1_000) / 25_000);
+  if (unit === 'vnd' || unit === 'd') return Math.round(amount / 25_000);
+  return Math.round((amount * 1_000) / 25_000);
 }
 
-function extractSearchKeywords(text: string): string {
-  const normalized = normalizeForMatch(text);
-  const cleaned = normalized
-    .replace(
-      /(?:\$|usd|dollar)\s*\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s*(k|nghin|trieu|tr|vnd|d|\$|usd|dollar)?/g,
-      ' '
-    )
-    .replace(
-      /\b(mua|tim|cho|voi|duoi|tren|tam|khoang|gia|bao|san pham|dang|khong|co|nao|giam|sale|khuyen mai|uu dai)\b/g,
-      ' '
-    )
-    .replace(/\s+/g, ' ')
-    .trim();
+// Returns both normalized (no-diacritic) and original (with-diacritic) keywords
+// so the DB search can match both English and Vietnamese product names.
+function extractSearchKeywords(text: string): { original: string; normalized: string } {
+  const numbersPattern =
+    /(?:\$|usd|dollar)\s*\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s*(k|nghin|trieu|tr|vnd|d|\$|usd|dollar)?/g;
+  const stopwordsSet = new Set([
+    'mua', 'tim', 'cho', 'voi', 'duoi', 'tren', 'tam', 'khoang', 'gia',
+    'bao', 'san', 'pham', 'dang', 'khong', 'co', 'nao', 'giam', 'sale',
+    'khuyen', 'mai', 'uu', 'dai', 'ban', 'oi', 'nhe', 'a', 'ay', 'gi',
+    'toi', 'muon', 'minh', 'shop', 'hang', 'cua', 'the', 'la', 'va',
+    'de', 'vay', 'ha', 'nha', 'do', 'nhu', 'biet', 'hoi', 'xem',
+  ]);
 
-  return cleaned.length < 2 ? '' : cleaned.slice(0, 80);
+  const normalizedText = normalizeForMatch(text).replace(numbersPattern, ' ');
+  const normalizedWords = normalizedText.trim().split(/\s+/);
+  const originalWords = text.replace(numbersPattern, ' ').trim().split(/\s+/);
+
+  const keptIndexes: number[] = [];
+  for (let i = 0; i < normalizedWords.length; i++) {
+    const word = normalizedWords[i].replace(/[^a-z]/g, '');
+    if (word.length > 1 && !stopwordsSet.has(word)) {
+      keptIndexes.push(i);
+    }
+  }
+
+  const normalized = keptIndexes.map((i) => normalizedWords[i]).join(' ').trim();
+  const original = keptIndexes.map((i) => originalWords[i] || '').join(' ').trim();
+
+  return {
+    original: original.length < 2 ? '' : original.slice(0, 80),
+    normalized: normalized.length < 2 ? '' : normalized.slice(0, 80),
+  };
 }
 
 async function getProductContext(
@@ -115,7 +134,7 @@ async function getProductContext(
   maxPrice?: number | null,
   options?: { saleOnly?: boolean }
 ): Promise<string> {
-  const search = extractSearchKeywords(query);
+  const { original: searchOriginal, normalized: searchNormalized } = extractSearchKeywords(query);
   const hasBudget = typeof maxPrice === 'number' && maxPrice > 0;
   const saleOnly = options?.saleOnly === true;
 
@@ -132,8 +151,15 @@ async function getProductContext(
     dbQuery = dbQuery.not('sale_price', 'is', null);
   }
 
-  if (search) {
-    dbQuery = dbQuery.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+  if (searchOriginal || searchNormalized) {
+    const orClauses: string[] = [];
+    if (searchOriginal) {
+      orClauses.push(`name.ilike.%${searchOriginal}%`, `description.ilike.%${searchOriginal}%`);
+    }
+    if (searchNormalized && searchNormalized !== searchOriginal) {
+      orClauses.push(`name.ilike.%${searchNormalized}%`, `description.ilike.%${searchNormalized}%`);
+    }
+    dbQuery = dbQuery.or(orClauses.join(','));
   }
 
   if (hasBudget) {
@@ -167,15 +193,22 @@ async function getProductContext(
 
 function formatProducts(products: ProductRow[]): string {
   if (!products.length) {
-    return '- KhÃ´ng cÃ³ sáº£n pháº©m phÃ¹ há»£p trong danh sÃ¡ch hiá»‡n cÃ³.';
+    return '- Không có sản phẩm phù hợp trong danh sách hiện có.';
   }
 
   return products
     .map((p) => {
-      const price = p.sale_price ?? p.base_price;
-      const priceText = p.sale_price ? `$${price} (giÃ¡ gá»‘c $${p.base_price})` : `$${price}`;
+      // Show sale price clearly so AI reports the correct discounted price
+      const priceText = p.sale_price
+        ? `$${p.sale_price} (giá gốc $${p.base_price}) [SALE PRICE - applies to all variants]`
+        : `$${p.base_price}`;
+      // When on sale, hide per-variant price to avoid AI confusion with the original price
       const variants = (p.product_variants || [])
-        .map((v) => `${v.size}/${v.color}: $${v.price} (cÃ²n ${v.stock})`)
+        .map((v) =>
+          p.sale_price
+            ? `${v.size}/${v.color}: ${v.stock} in stock`
+            : `${v.size}/${v.color}: $${v.price} (${v.stock} in stock)`
+        )
         .join(', ');
       const url = p.slug ? `/product/${p.slug}` : `/product/${p.id}`;
 
@@ -188,22 +221,22 @@ function formatProducts(products: ProductRow[]): string {
         imageUrl = p.image;
       }
 
-      return `- TÃªn sáº£n pháº©m: ${p.name}
-  + GiÃ¡: ${priceText} (${variants || 'xem chi tiáº¿t'})
-  + áº¢nh: ${imageUrl ? `![áº¢nh ${p.name}](${imageUrl})` : 'khÃ´ng cÃ³'}
-  + Link chi tiáº¿t: [${p.name}](${url})`;
+      return `- Tên sản phẩm: ${p.name}
+  + Giá: ${priceText} (${variants || 'xem chi tiết'})
+  + Ảnh: ${imageUrl ? `![Ảnh ${p.name}](${imageUrl})` : 'không có'}
+  + Link chi tiết: [${p.name}](${url})`;
     })
     .join('\n\n');
 }
 
 function buildFallbackReply(productContext: string, saleOnly: boolean): string {
   const normalized = productContext.trim();
-  const isEmpty = normalized.startsWith('- KhÃ´ng cÃ³ sáº£n pháº©m phÃ¹ há»£p');
+  const isEmpty = normalized.startsWith('- Không có sản phẩm phù hợp');
 
   if (isEmpty) {
     return saleOnly
-      ? 'Hiá»‡n táº¡i shop chÆ°a cÃ³ sáº£n pháº©m giáº£m giÃ¡ phÃ¹ há»£p theo yÃªu cáº§u cá»§a báº¡n.'
-      : 'Hiá»‡n táº¡i mÃ¬nh chÆ°a tÃ¬m tháº¥y sáº£n pháº©m phÃ¹ há»£p trong shop cho yÃªu cáº§u nÃ y.';
+      ? 'Hiện tại shop chưa có sản phẩm giảm giá phù hợp theo yêu cầu của bạn.'
+      : 'Hiện tại mình chưa tìm thấy sản phẩm phù hợp trong shop cho yêu cầu này.';
   }
 
   const snippets = normalized
@@ -213,7 +246,7 @@ function buildFallbackReply(productContext: string, saleOnly: boolean): string {
     .slice(0, 3)
     .join('\n\n');
 
-  return `MÃ¬nh Ä‘ang gáº·p lá»—i káº¿t ná»‘i AI táº¡m thá»i, nhÆ°ng báº¡n cÃ³ thá»ƒ tham kháº£o nhanh cÃ¡c sáº£n pháº©m sau:\n\n${snippets}`;
+  return `Mình đang gặp lỗi kết nối AI tạm thời, nhưng bạn có thể tham khảo nhanh các sản phẩm sau:\n\n${snippets}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -226,12 +259,12 @@ export async function POST(req: NextRequest) {
     };
 
     if (!message || typeof message !== 'string') {
-      return NextResponse.json({ error: 'Thiáº¿u ná»™i dung tin nháº¯n' }, { status: 400 });
+      return NextResponse.json({ error: 'Thiếu nội dung tin nhắn' }, { status: 400 });
     }
 
     const trimmed = message.trim();
     if (!trimmed) {
-      return NextResponse.json({ error: 'Tin nháº¯n khÃ´ng Ä‘Æ°á»£c Ä‘á»ƒ trá»‘ng' }, { status: 400 });
+      return NextResponse.json({ error: 'Tin nhắn không được để trống' }, { status: 400 });
     }
 
     const budget = extractBudget(trimmed);
@@ -242,7 +275,7 @@ export async function POST(req: NextRequest) {
     if (!sid) {
       const session = await createSession(userId || null);
       if (!session) {
-        return NextResponse.json({ error: 'KhÃ´ng thá»ƒ táº¡o phiÃªn chat' }, { status: 500 });
+        return NextResponse.json({ error: 'Không thể tạo phiên chat' }, { status: 500 });
       }
       sid = session.id;
     } else {
@@ -264,23 +297,23 @@ export async function POST(req: NextRequest) {
         parts: [{ text: m.message }],
       }));
 
-    const systemPrompt = `Báº¡n lÃ  trá»£ lÃ½ tÆ° váº¥n bÃ¡n hÃ ng cá»§a cá»­a hÃ ng thá»i trang. Tráº£ lá»i ngáº¯n gá»n, thÃ¢n thiá»‡n báº±ng tiáº¿ng Viá»‡t.
-NGUYÃŠN Táº®C Báº®T BUá»˜C KHI TRáº¢ Lá»œI TÆ¯ Váº¤N/PHá»I Äá»’:
-1. CHá»ˆ Ä‘Æ°á»£c nháº¯c Ä‘áº¿n vÃ  gá»£i Ã½ nhá»¯ng sáº£n pháº©m CÃ“ TRONG DANH SÃCH Dá»® LIá»†U BÃŠN DÆ¯á»šI. TUYá»†T Äá»I KHÃ”NG tá»± bá»‹a ra sáº£n pháº©m bÃªn ngoÃ i. Tuyá»‡t Ä‘á»‘i Ä‘á»«ng tá»± cháº¿ "Cargo Utility Pants", "Denim Jacket"... náº¿u nÃ³ KHÃ”NG CÃ“ TRONG DANH SÃCH BÃŠN DÆ¯á»šI.
-2. Báº¤T Cá»¨ KHI NÃ€O nháº¯c Ä‘áº¿n tÃªn sáº£n pháº©m trong cÃ¢u tráº£ lá»i (bÃ¡o giÃ¡, gá»£i Ã½...), Báº®T BUá»˜C pháº£i viáº¿t TÃŠN Sáº¢N PHáº¨M á»ž Dáº NG LINK VÃ€ KÃˆM THEO áº¢NH Sáº¢N PHáº¨M. Náº¿u khÃ´ng cÃ³ áº£nh, cá»© tráº£ link sáº£n pháº©m.
-3. DÃ¹ng Ä‘Ãºng chuáº©n Markdown:
-   Náº¿u cÃ³ áº£nh: ![áº¢nh Sáº£n Pháº©m](link_áº£nh) **[TÃªn Sáº£n Pháº©m In Äáº­m](link_sáº£n_pháº©m)**
-   Náº¿u khÃ´ng cÃ³ áº£nh: **[TÃªn Sáº£n Pháº©m In Äáº­m](link_sáº£n_pháº©m)**
-4. Náº¿u khÃ¡ch há»i "sáº£n pháº©m XYZ cÃ³ khÃ´ng", vÃ  nÃ³ KHÃ”NG CÃ“ TRONG DANH SÃCH Dá»® LIá»†U, thÃ¬ nÃ³i KHÃ”NG cÃ³ vÃ  gá»£i Ã½ mÃ³n KHÃC CÃ“ TRONG DANH SÃCH Dá»® LIá»†U.`;
+    const systemPrompt = `Bạn là trợ lý tư vấn bán hàng của cửa hàng thời trang. Trả lời ngắn gọn, thân thiện bằng tiếng Việt.
+NGUYÊN TẮC BẮT BUỘC KHI TRẢ LỜI TƯ VẤN/PHỐI ĐỒ:
+1. CHỈ được nhắc đến và gợi ý những sản phẩm CÓ TRONG DANH SÁCH DỮ LIỆU BÊN DƯỚI. TUYỆT ĐỐI KHÔNG tự bịa ra sản phẩm bên ngoài. Tuyệt đối đừng tự chế "Cargo Utility Pants", "Denim Jacket"... nếu nó KHÔNG CÓ TRONG DANH SÁCH BÊN DƯỚI.
+2. BẤT CỨ KHI NÀO nhắc đến tên sản phẩm trong câu trả lời (báo giá, gợi ý...), BẮT BUỘC phải viết TÊN SẢN PHẨM Ở DẠNG LINK VÀ KÈM THEO ẢNH SẢN PHẨM. Nếu không có ảnh, cứ trả link sản phẩm.
+3. Dùng đúng chuẩn Markdown:
+   Nếu có ảnh: ![Ảnh Sản Phẩm](link_ảnh) **[Tên Sản Phẩm In Đậm](link_sản_phẩm)**
+   Nếu không có ảnh: **[Tên Sản Phẩm In Đậm](link_sản_phẩm)**
+4. Nếu khách hỏi "sản phẩm XYZ có không", và nó KHÔNG CÓ TRONG DANH SÁCH DỮ LIỆU, thì nói KHÔNG có và gợi ý món KHÁC CÓ TRONG DANH SÁCH DỮ LIỆU.`;
 
-    const userPrompt = `[Dá»® LIá»†U Sáº¢N PHáº¨M HIá»†N CÃ“]
+    const userPrompt = `[DỮ LIỆU SẢN PHẨM HIỆN CÓ]
 ${productContext}
 
 [SALE_ONLY]: ${saleOnly ? 'yes' : 'no'}
 [IMPORTANT]: If SALE_ONLY is yes, only suggest products that are currently on sale.
-[NGÃ‚N SÃCH KHÃCH NÃŠU (náº¿u cÃ³)]: ${budget ? `$${Math.round(budget / 25000)}` : 'khÃ´ng'}
+[NGÂN SÁCH KHÁCH NÊU (nếu có)]: ${budget ? `${budget}` : 'không'}
 
-[Tin nháº¯n khÃ¡ch]: ${trimmed}`;
+[Tin nhắn khách]: ${trimmed}`;
 
     let reply = '';
     try {
@@ -314,11 +347,11 @@ ${productContext}
       return NextResponse.json(
         {
           error:
-            'API key Gemini khÃ´ng há»£p lá»‡. Vui lÃ²ng kiá»ƒm tra GEMINI_API_KEY trong .env.local vÃ  láº¥y key má»›i táº¡i https://aistudio.google.com/apikey',
+            'API key Gemini không hợp lệ. Vui lòng kiểm tra GEMINI_API_KEY trong .env.local và lấy key mới tại https://aistudio.google.com/apikey',
         },
         { status: 500 }
       );
     }
-    return NextResponse.json({ error: 'Lá»—i xá»­ lÃ½ tin nháº¯n. Vui lÃ²ng thá»­ láº¡i.' }, { status: 500 });
+    return NextResponse.json({ error: 'Lỗi xử lý tin nhắn. Vui lòng thử lại.' }, { status: 500 });
   }
 }
