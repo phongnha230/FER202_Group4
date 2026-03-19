@@ -28,6 +28,8 @@ export interface CreateOrderRequest {
     receiver_address: string;
     shipping_fee?: number;
   };
+  voucher_code?: string;
+  discount_amount?: number;
 }
 
 // Order status update request

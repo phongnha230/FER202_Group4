@@ -300,13 +300,18 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                 <Button
                     className="flex-1 h-12 text-base btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     size="lg"
-                    disabled={variants.length === 0 || currentStock === 0 || currentStock === null}
+                    disabled={authLoading || variants.length === 0 || currentStock === 0 || currentStock === null}
                     onClick={async (e) => {
-                        if (authLoading) {
-                            alert('Please wait while we verify your session...');
-                            return;
+                        // Nếu store chưa xác nhận auth, fallback check thẳng Supabase
+                        let authenticated = isAuthenticated && !!user;
+                        if (!authenticated) {
+                            const { createClient } = await import('@/lib/supabase/client');
+                            const supabase = createClient();
+                            const { data: { user: sbUser } } = await supabase.auth.getUser();
+                            authenticated = !!sbUser;
                         }
-                         if (!isAuthenticated || !user) {
+
+                        if (!authenticated) {
                             if (window.confirm("You need to login to proceed. Do you want to login now?")) {
                                 const next = typeof window !== 'undefined' ? window.location.pathname : '/';
                                 router.push(`/login?next=${encodeURIComponent(next)}`);
@@ -374,7 +379,7 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                         }
                     }}
                 >
-                    {variants.length === 0 ? 'Loading...' : 'Buy Now'}
+                    {authLoading || variants.length === 0 ? 'Loading...' : 'Buy Now'}
                 </Button>
                 <Button variant="outline" size="icon" className="h-12 w-12 shrink-0 border-gray-200">
                     <Heart className="h-5 w-5" />

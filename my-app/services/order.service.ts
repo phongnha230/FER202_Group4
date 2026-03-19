@@ -29,6 +29,8 @@ interface CreateBuyNowOrderRequest {
     receiver_address: string;
     shipping_fee?: number;
   };
+  voucher_code?: string;
+  discount_amount?: number;
 }
 
 /**
@@ -72,6 +74,8 @@ export async function createBuyNowOrder(
         payment_method: request.payment_method,
         payment_status: 'unpaid',
         order_status: 'pending_payment',
+        voucher_code: request.voucher_code || null,
+        discount_amount: request.discount_amount || 0,
       })
       .select()
       .single();
@@ -190,6 +194,8 @@ export async function createOrder(
         payment_method: request.payment_method,
         payment_status: 'unpaid',
         order_status: 'pending_payment',
+        voucher_code: request.voucher_code || null,
+        discount_amount: request.discount_amount || 0,
       })
       .select()
       .single();

@@ -44,6 +44,14 @@ export default function OrderSummary() {
     const searchParams = useSearchParams();
     const [localError, setLocalError] = useState<string | null>(null);
     const [buyNowItem, setBuyNowItem] = useState<BuyNowItem | null>(null);
+    const [voucherInput, setVoucherInput] = useState('');
+    const [isApplyingVoucher, setIsApplyingVoucher] = useState(false);
+    const [voucherError, setVoucherError] = useState<string | null>(null);
+    const [appliedVoucher, setAppliedVoucher] = useState<{
+        code: string;
+        description: string | null;
+        discount_amount: number;
+    } | null>(null);
     
     // Check if this is a "Buy Now" checkout
     const isBuyNowMode = searchParams.get('buyNow') === 'true';
@@ -87,7 +95,7 @@ export default function OrderSummary() {
     // Calculate totals based on mode
     const { subtotal, shipping, taxes, total } = useMemo(() => {
         let sub = 0;
-        
+
         if (isBuyNowMode && buyNowItem) {
             sub = buyNowItem.variant_price * buyNowItem.quantity;
         } else {
@@ -96,11 +104,44 @@ export default function OrderSummary() {
                 return sum + (price * item.quantity);
             }, 0) || 0;
         }
-        
+
         const ship = sub > 150 ? 0 : 15.00;
         const tax = sub * 0.08;
-        return { subtotal: sub, shipping: ship, taxes: tax, total: sub + ship + tax };
-    }, [isBuyNowMode, buyNowItem, cart?.items]);
+        const discount = appliedVoucher?.discount_amount || 0;
+        const baseTotal = sub + ship + tax;
+        return { subtotal: sub, shipping: ship, taxes: tax, total: Math.max(0, baseTotal - discount) };
+    }, [isBuyNowMode, buyNowItem, cart?.items, appliedVoucher]);
+
+    const handleApplyVoucher = async () => {
+        if (!voucherInput.trim()) return;
+        setIsApplyingVoucher(true);
+        setVoucherError(null);
+
+        try {
+            const res = await fetch('/api/vouchers/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: voucherInput.trim(), subtotal, shipping }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                setVoucherError(data.error || 'Mã không hợp lệ');
+                setAppliedVoucher(null);
+            } else {
+                setAppliedVoucher({
+                    code: data.voucher.code,
+                    description: data.voucher.description,
+                    discount_amount: data.discount_amount,
+                });
+                setVoucherInput('');
+            }
+        } catch {
+            setVoucherError('Không thể kết nối server');
+        } finally {
+            setIsApplyingVoucher(false);
+        }
+    };
 
     const handlePlaceOrder = async () => {
         if (!isAuthenticated || !user?.id) {
@@ -149,7 +190,6 @@ export default function OrderSummary() {
 
             if (isBuyNowMode && buyNowItem) {
                 console.log('Creating Buy Now order for variant:', buyNowItem.variant_id);
-                // Create order for Buy Now item (single item, not from cart)
                 const result = await createBuyNowOrder(user.id, {
                     variant_id: buyNowItem.variant_id,
                     quantity: buyNowItem.quantity,
@@ -157,24 +197,26 @@ export default function OrderSummary() {
                     payment_method: paymentMethod,
                     payment_gateway: paymentMethod === 'online' ? (formData.paymentMethod as 'momo' | 'vnpay' | 'card') : undefined,
                     shipping_info: { ...shippingInfo, shipping_fee: shipping },
+                    voucher_code: appliedVoucher?.code,
+                    discount_amount: appliedVoucher?.discount_amount,
                 });
                 console.log('Buy Now order result:', result);
                 order = result.data;
                 orderError = result.error;
-                
-                // Clear the buyNowItem from sessionStorage after successful order
+
                 if (order) {
                     sessionStorage.removeItem('buyNowItem');
                 }
             } else {
                 console.log('Creating cart order for cart:', cart?.id);
-                // Create order from cart
                 const result = await createOrder(user.id, {
                     cart_id: cart!.id,
                     total_price: total,
                     payment_method: paymentMethod,
                     payment_gateway: paymentMethod === 'online' ? (formData.paymentMethod as 'momo' | 'vnpay' | 'card') : undefined,
                     shipping_info: { ...shippingInfo, shipping_fee: shipping },
+                    voucher_code: appliedVoucher?.code,
+                    discount_amount: appliedVoucher?.discount_amount,
                 });
                 console.log('Cart order result:', result);
                 order = result.data;
@@ -187,6 +229,15 @@ export default function OrderSummary() {
             }
 
             console.log('Order created successfully:', order.id);
+
+            // Increment voucher used_count (non-blocking)
+            if (appliedVoucher?.code) {
+                fetch('/api/vouchers/redeem', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: appliedVoucher.code }),
+                }).catch((e) => console.warn('Failed to redeem voucher:', e));
+            }
 
             // Create in-app notification for order placed
             try {
@@ -363,10 +414,48 @@ export default function OrderSummary() {
                         )}
                     </div>
 
-                    <div className="flex gap-2 mb-6">
-                        <Input placeholder="Gift card or discount code" className="bg-white" />
-                        <Button variant="outline">Apply</Button>
-                    </div>
+                    {/* Voucher input */}
+                    {appliedVoucher ? (
+                        <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-md px-3 py-2 mb-6 text-sm">
+                            <span className="text-green-700 font-medium">
+                                🏷 {appliedVoucher.code}
+                                {appliedVoucher.description && (
+                                    <span className="font-normal text-green-600"> — {appliedVoucher.description}</span>
+                                )}
+                            </span>
+                            <button
+                                onClick={() => setAppliedVoucher(null)}
+                                className="text-green-600 hover:text-green-800 text-xs ml-2"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="mb-6">
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="Gift card or discount code"
+                                    className="bg-white"
+                                    value={voucherInput}
+                                    onChange={(e) => {
+                                        setVoucherInput(e.target.value.toUpperCase());
+                                        setVoucherError(null);
+                                    }}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleApplyVoucher()}
+                                />
+                                <Button
+                                    variant="outline"
+                                    onClick={handleApplyVoucher}
+                                    disabled={isApplyingVoucher || !voucherInput.trim()}
+                                >
+                                    {isApplyingVoucher ? '...' : 'Apply'}
+                                </Button>
+                            </div>
+                            {voucherError && (
+                                <p className="text-xs text-red-500 mt-1">{voucherError}</p>
+                            )}
+                        </div>
+                    )}
 
                     <div className="space-y-3 pt-6 border-t border-gray-200">
                         <div className="flex justify-between text-sm">
@@ -381,6 +470,12 @@ export default function OrderSummary() {
                             <span className="text-gray-600">Taxes (estimated)</span>
                             <span className="font-medium text-gray-900">${taxes.toFixed(2)}</span>
                         </div>
+                        {appliedVoucher && (
+                            <div className="flex justify-between text-sm text-green-600">
+                                <span>Discount ({appliedVoucher.code})</span>
+                                <span className="font-medium">-${appliedVoucher.discount_amount.toFixed(2)}</span>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex justify-between items-baseline pt-6 mt-6 border-t border-gray-200">

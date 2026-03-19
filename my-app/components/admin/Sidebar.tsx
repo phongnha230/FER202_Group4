@@ -9,7 +9,8 @@ import {
     Users,
     LogOut,
     Layers,
-    MessageSquareQuote
+    MessageSquareQuote,
+    Tag
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,11 @@ const sidebarItems = [
         title: "Reviews",
         href: "/admin/reviews",
         icon: MessageSquareQuote,
+    },
+    {
+        title: "Vouchers",
+        href: "/admin/vouchers",
+        icon: Tag,
     },
 ];
 
