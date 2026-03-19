@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { UIProduct } from '@/lib/adapters/product.adapter';
 import { Button } from '@/components/ui/button';
 import { Heart, Truck, RefreshCw, ShieldCheck } from 'lucide-react';
@@ -30,6 +30,7 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
     // const [selectedColor, setSelectedColor] = useState(product.colors?.[0] || ''); // Lifted up
     const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] || '');
     const router = useRouter();
+    const { user, isAuthenticated, isLoading: authLoading } = useUserStore();
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -79,10 +80,8 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
         ? (matchingVariant?.price || product.price)
         : product.price;
 
-    const updateCartData = async () => {
+    const updateCartData = useCallback(async () => {
         if (typeof window === 'undefined') return;
-        
-        const { user, isAuthenticated } = useUserStore.getState();
         
         if (isAuthenticated && user?.id) {
             // Fetch from Supabase for authenticated users
@@ -106,7 +105,7 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
             setCartCount(cart.reduce((total, item) => total + item.quantity, 0));
             setCartTotal(cart.reduce((total, item) => total + (item.price * item.quantity), 0));
         }
-    };
+    }, [isAuthenticated, user]);
 
     useEffect(() => {
         // Use setTimeout to avoid "synchronous setState in effect" warning
@@ -121,7 +120,7 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
             clearTimeout(timer);
             window.removeEventListener('cart-updated', handleCartUpdate);
         };
-    }, []);
+    }, [updateCartData]);
 
 
 
@@ -203,7 +202,6 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                     disabled={currentStock === 0 || currentStock === null}
                     onClick={async () => {
                         softFirework();
-                        const { user, isAuthenticated } = useUserStore.getState();
                         
                         // Debug logging
                         console.log('Add to Cart - Selected:', { color: selectedColor, size: selectedSize });
@@ -304,8 +302,7 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
                     size="lg"
                     disabled={variants.length === 0 || currentStock === 0 || currentStock === null}
                     onClick={async (e) => {
-                        const { user, isAuthenticated, isLoading } = useUserStore.getState();
-                        if (isLoading) {
+                        if (authLoading) {
                             alert('Please wait while we verify your session...');
                             return;
                         }
