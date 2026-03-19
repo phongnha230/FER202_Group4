@@ -29,6 +29,8 @@ type ProductCardData = {
   name: string;
   url: string;
   imageUrl?: string;
+  price?: number;
+  salePrice?: number;
 };
 
 function extractProductCards(markdown: string): {
@@ -59,10 +61,29 @@ function extractProductCards(markdown: string): {
       imageCandidates.at(-1)?.[1]?.trim() ||
       imageAfterCandidates.at(0)?.[1]?.trim();
 
+    // Extract price info from context around the link
+    const priceContext = contextBeforeLink.slice(-300) + contextAfterLink.slice(0, 200);
+    const salePricePattern = /\$(\d+(?:[.,]\d+)?)\s*\((?:giá gốc|giá ban đầu)\s*\$(\d+(?:[.,]\d+)?)\)/i;
+    const singlePricePattern = /\$(\d+(?:[.,]\d+)?)/;
+    let price: number | undefined;
+    let salePrice: number | undefined;
+    const saleMatch = salePricePattern.exec(priceContext);
+    if (saleMatch) {
+      salePrice = parseFloat(saleMatch[1].replace(",", "."));
+      price = parseFloat(saleMatch[2].replace(",", "."));
+    } else {
+      const priceMatch = singlePricePattern.exec(priceContext);
+      if (priceMatch) {
+        price = parseFloat(priceMatch[1].replace(",", "."));
+      }
+    }
+
     cards.push({
       name: rawName.trim() || "View product",
       url,
       imageUrl,
+      price,
+      salePrice,
     });
     seenUrls.add(url);
   }
@@ -355,17 +376,31 @@ export default function ChatWidget() {
                                         No image
                                       </div>
                                     )}
-                                    <div className="mt-2 space-y-2">
+                                    <div className="mt-2 space-y-1.5">
                                       <p className="text-sm font-semibold leading-snug text-foreground">
                                         {card.name}
                                       </p>
-                                      <Link
-                                        href={card.url}
-                                        onClick={() => setOpen(false)}
-                                        className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-                                      >
-                                        View
-                                      </Link>
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex flex-col">
+                                          {card.salePrice !== undefined ? (
+                                            <>
+                                              <span className="text-sm font-bold text-red-500">${card.salePrice}</span>
+                                              {card.price !== undefined && (
+                                                <span className="text-xs text-muted-foreground line-through">${card.price}</span>
+                                              )}
+                                            </>
+                                          ) : card.price !== undefined ? (
+                                            <span className="text-sm font-semibold">${card.price}</span>
+                                          ) : null}
+                                        </div>
+                                        <Link
+                                          href={card.url}
+                                          onClick={() => setOpen(false)}
+                                          className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                                        >
+                                          View
+                                        </Link>
+                                      </div>
                                     </div>
                                   </article>
                                 ))}
