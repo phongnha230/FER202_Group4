@@ -71,8 +71,13 @@ export default function ProductInfo({ product, selectedColor, onColorChange }: P
         v.size?.toLowerCase().trim() === selectedSize?.toLowerCase().trim()
     );
 
-    const displayPrice = matchingVariant?.price || product.price;
-    const displaySalePrice = matchingVariant?.sale_price !== undefined ? matchingVariant.sale_price : product.salePrice;
+    const variantSalePrice = matchingVariant?.sale_price ?? null;
+    const displaySalePrice = variantSalePrice ?? product.salePrice;
+    // Nếu sale từ variant → dùng variant.price làm giá gốc
+    // Nếu sale từ product → dùng product.price làm giá gốc (nhất quán với card)
+    const displayPrice = (variantSalePrice != null)
+        ? (matchingVariant?.price || product.price)
+        : product.price;
 
     const updateCartData = async () => {
         if (typeof window === 'undefined') return;
