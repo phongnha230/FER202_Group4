@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2, ToggleLeft, ToggleRight, Loader2, Pencil } from "lucide-react";
+import { Plus, Trash2, ToggleLeft, ToggleRight, Loader2, Pencil, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -112,6 +112,35 @@ export default function VouchersPage() {
         fetchVouchers();
     };
 
+    const handleExportCSV = () => {
+        const headers = ["Mã code", "Mô tả", "Loại giảm", "Giá trị", "Áp dụng cho", "Đơn tối thiểu ($)", "Đã dùng", "Tối đa", "Hết hạn", "Trạng thái", "Ngày tạo"];
+        const rows = vouchers.map((v) => [
+            v.code,
+            v.description ?? "",
+            v.discount_type === "percentage" ? "Phần trăm" : "Cố định",
+            v.discount_type === "percentage" ? `${v.discount_value}%` : `$${v.discount_value}`,
+            v.applies_to === "shipping" ? "Phí vận chuyển" : "Đơn hàng",
+            v.min_order_amount > 0 ? v.min_order_amount : 0,
+            v.used_count,
+            v.max_uses ?? "Không giới hạn",
+            formatDate(v.expires_at),
+            v.is_active ? "Đang hoạt động" : "Đã tắt",
+            formatDate(v.created_at),
+        ]);
+
+        const csv = [headers, ...rows]
+            .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+            .join("\n");
+
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `vouchers_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     const handleEdit = (v: Voucher) => {
         setEditingVoucher(v);
         setForm({
@@ -164,10 +193,16 @@ export default function VouchersPage() {
                     <h1 className="text-2xl font-bold text-slate-900">Vouchers</h1>
                     <p className="text-sm text-slate-500 mt-1">Quản lý mã giảm giá</p>
                 </div>
-                <Button onClick={() => { setEditingVoucher(null); setForm(emptyForm); setShowForm(!showForm); setFormError(null); }}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Tạo voucher
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleExportCSV} disabled={vouchers.length === 0}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Export CSV
+                    </Button>
+                    <Button onClick={() => { setEditingVoucher(null); setForm(emptyForm); setShowForm(!showForm); setFormError(null); }}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Tạo voucher
+                    </Button>
+                </div>
             </div>
 
             {/* Create Form */}

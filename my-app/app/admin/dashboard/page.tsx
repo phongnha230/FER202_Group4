@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DollarSign, ShoppingBag, Users, Package, Loader2, TrendingUp, Activity, Clock3, Sparkles } from "lucide-react";
+import { DollarSign, ShoppingBag, Users, Package, Loader2, TrendingUp, Activity, Clock3, Sparkles, Download } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -146,6 +146,57 @@ export default function DashboardPage() {
             .substring(0, 2);
     };
 
+    const handleExportSummary = () => {
+        const now = new Date();
+        const dateStr = now.toLocaleString("vi-VN");
+        const fileName = `dashboard_summary_${now.toISOString().slice(0, 10)}.csv`;
+
+        const sections: string[][] = [
+            ["=== DASHBOARD SUMMARY ==="],
+            [`Exported at: ${dateStr}`, `Time range: ${timeRange}`],
+            [],
+            ["=== STORE OVERVIEW ==="],
+            ["Metric", "Value"],
+            ["Total Sales (paid/delivered)", formatCurrency(stats.totalSales)],
+            ["Total Orders", String(stats.totalOrders)],
+            ["Total Customers", String(stats.totalCustomers)],
+            ["Active Products", String(stats.totalProducts)],
+            [],
+            [`=== SALES SUMMARY (${timeRange}) ===`],
+            ["Metric", "Value"],
+            ["Total Revenue", formatCurrency(salesSummary.totalRevenue)],
+            ["Total Orders", String(salesSummary.totalOrders)],
+            [timeRange === "24H" ? "Avg Revenue / Hour" : "Avg Revenue / Day", formatCurrency(salesSummary.averageRevenue)],
+            [timeRange === "24H" ? "Avg Orders / Hour" : "Avg Orders / Day", salesSummary.averageOrders.toFixed(2)],
+            ["Peak Period", salesSummary.peakLabel],
+            ["Peak Revenue", formatCurrency(salesSummary.peakRevenue)],
+            ["Active Periods", String(salesSummary.activePeriods)],
+            ["Insight", salesSummary.insight],
+            [],
+            ["=== RECENT ORDERS ==="],
+            ["Order ID", "Customer", "Status", "Total", "Date"],
+            ...recentOrders.map((o) => [
+                formatOrderId(o.id),
+                o.customer_name,
+                o.status,
+                formatCurrency(o.total),
+                new Date(o.created_at).toLocaleString("vi-VN"),
+            ]),
+        ];
+
+        const csv = sections
+            .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+            .join("\n");
+
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     const getStatusColor = (status: string) => {
         switch (status) {
             case "completed":
@@ -228,7 +279,8 @@ export default function DashboardPage() {
                     <p className="text-slate-500">Real-time performance summary of your store.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" className="gap-2">
+                    <Button variant="outline" className="gap-2" onClick={handleExportSummary}>
+                        <Download className="h-4 w-4" />
                         Export Summary
                     </Button>
                     <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => window.location.reload()}>
