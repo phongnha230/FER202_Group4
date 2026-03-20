@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2, ToggleLeft, ToggleRight, Loader2 } from "lucide-react";
+import { Plus, Trash2, ToggleLeft, ToggleRight, Loader2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +54,7 @@ export default function VouchersPage() {
     const [formError, setFormError] = useState<string | null>(null);
     const [togglingId, setTogglingId] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [editingVoucher, setEditingVoucher] = useState<Voucher | null>(null);
 
     const fetchVouchers = async () => {
         setLoading(true);
@@ -111,6 +112,51 @@ export default function VouchersPage() {
         fetchVouchers();
     };
 
+    const handleEdit = (v: Voucher) => {
+        setEditingVoucher(v);
+        setForm({
+            code: v.code,
+            description: v.description ?? "",
+            discount_type: v.discount_type,
+            discount_value: String(v.discount_value),
+            applies_to: v.applies_to,
+            min_order_amount: v.min_order_amount > 0 ? String(v.min_order_amount) : "",
+            max_uses: v.max_uses !== null ? String(v.max_uses) : "",
+            expires_at: v.expires_at ? v.expires_at.split("T")[0] : "",
+        });
+        setShowForm(true);
+        setFormError(null);
+    };
+
+    const handleUpdate = async () => {
+        if (!editingVoucher) return;
+        setFormError(null);
+        if (!form.code.trim()) return setFormError("Vui lòng nhập mã voucher");
+        if (!form.discount_value || Number(form.discount_value) <= 0) return setFormError("Giá trị giảm phải > 0");
+
+        setSaving(true);
+        const { error } = await supabase.from("vouchers").update({
+            code: form.code.toUpperCase().trim(),
+            description: form.description || null,
+            discount_type: form.discount_type,
+            discount_value: Number(form.discount_value),
+            applies_to: form.applies_to,
+            min_order_amount: Number(form.min_order_amount) || 0,
+            max_uses: form.max_uses ? Number(form.max_uses) : null,
+            expires_at: form.expires_at || null,
+        }).eq("id", editingVoucher.id);
+
+        setSaving(false);
+        if (error) {
+            setFormError(error.message.includes("unique") ? "Mã voucher đã tồn tại" : error.message);
+            return;
+        }
+        setEditingVoucher(null);
+        setForm(emptyForm);
+        setShowForm(false);
+        fetchVouchers();
+    };
+
     return (
         <div>
             <div className="flex items-center justify-between mb-6">
@@ -118,7 +164,7 @@ export default function VouchersPage() {
                     <h1 className="text-2xl font-bold text-slate-900">Vouchers</h1>
                     <p className="text-sm text-slate-500 mt-1">Quản lý mã giảm giá</p>
                 </div>
-                <Button onClick={() => { setShowForm(!showForm); setFormError(null); }}>
+                <Button onClick={() => { setEditingVoucher(null); setForm(emptyForm); setShowForm(!showForm); setFormError(null); }}>
                     <Plus className="h-4 w-4 mr-2" />
                     Tạo voucher
                 </Button>
@@ -127,7 +173,7 @@ export default function VouchersPage() {
             {/* Create Form */}
             {showForm && (
                 <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6 shadow-sm">
-                    <h2 className="text-base font-semibold mb-4">Voucher mới</h2>
+                    <h2 className="text-base font-semibold mb-4">{editingVoucher ? `Chỉnh sửa: ${editingVoucher.code}` : "Voucher mới"}</h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <label className="text-xs font-medium text-slate-600 mb-1 block">Mã code *</label>
@@ -220,11 +266,11 @@ export default function VouchersPage() {
                     {formError && <p className="text-sm text-red-500 mt-3">{formError}</p>}
 
                     <div className="flex gap-3 mt-4">
-                        <Button onClick={handleCreate} disabled={saving}>
+                        <Button onClick={editingVoucher ? handleUpdate : handleCreate} disabled={saving}>
                             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                            Lưu voucher
+                            {editingVoucher ? "Cập nhật" : "Lưu voucher"}
                         </Button>
-                        <Button variant="outline" onClick={() => { setShowForm(false); setFormError(null); }}>
+                        <Button variant="outline" onClick={() => { setShowForm(false); setEditingVoucher(null); setForm(emptyForm); setFormError(null); }}>
                             Hủy
                         </Button>
                     </div>
@@ -299,6 +345,14 @@ export default function VouchersPage() {
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2 justify-end">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleEdit(v)}
+                                                title="Chỉnh sửa voucher"
+                                            >
+                                                <Pencil className="h-4 w-4 text-slate-400 hover:text-blue-600" />
+                                            </Button>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"

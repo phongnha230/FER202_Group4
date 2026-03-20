@@ -7,7 +7,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { useCart } from '@/hooks/useCart';
 import { useCheckoutStore } from '@/store/checkout.store';
 import { useUserStore } from '@/store/user.store';
-import { createOrder, createBuyNowOrder } from '@/services/order.service';
 import { initializePayment } from '@/services/payment.service';
 import { getColorFilter } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -190,37 +189,49 @@ export default function OrderSummary() {
 
             if (isBuyNowMode && buyNowItem) {
                 console.log('Creating Buy Now order for variant:', buyNowItem.variant_id);
-                const result = await createBuyNowOrder(user.id, {
-                    variant_id: buyNowItem.variant_id,
-                    quantity: buyNowItem.quantity,
-                    total_price: total,
-                    payment_method: paymentMethod,
-                    payment_gateway: paymentMethod === 'online' ? (formData.paymentMethod as 'momo' | 'vnpay' | 'card') : undefined,
-                    shipping_info: { ...shippingInfo, shipping_fee: shipping },
-                    voucher_code: appliedVoucher?.code,
-                    discount_amount: appliedVoucher?.discount_amount,
+                const res = await fetch('/api/orders/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mode: 'buy_now',
+                        variant_id: buyNowItem.variant_id,
+                        quantity: buyNowItem.quantity,
+                        total_price: total,
+                        payment_method: paymentMethod,
+                        payment_gateway: paymentMethod === 'online' ? (formData.paymentMethod as 'momo' | 'vnpay' | 'card') : undefined,
+                        shipping_info: { ...shippingInfo, shipping_fee: shipping },
+                        voucher_code: appliedVoucher?.code,
+                        discount_amount: appliedVoucher?.discount_amount,
+                    }),
                 });
-                console.log('Buy Now order result:', result);
-                order = result.data;
-                orderError = result.error;
+                const json = await res.json();
+                console.log('Buy Now order result:', json);
+                order = json.order ?? null;
+                orderError = json.error ? new Error(json.error) : null;
 
                 if (order) {
                     sessionStorage.removeItem('buyNowItem');
                 }
             } else {
                 console.log('Creating cart order for cart:', cart?.id);
-                const result = await createOrder(user.id, {
-                    cart_id: cart!.id,
-                    total_price: total,
-                    payment_method: paymentMethod,
-                    payment_gateway: paymentMethod === 'online' ? (formData.paymentMethod as 'momo' | 'vnpay' | 'card') : undefined,
-                    shipping_info: { ...shippingInfo, shipping_fee: shipping },
-                    voucher_code: appliedVoucher?.code,
-                    discount_amount: appliedVoucher?.discount_amount,
+                const res = await fetch('/api/orders/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mode: 'cart',
+                        cart_id: cart!.id,
+                        total_price: total,
+                        payment_method: paymentMethod,
+                        payment_gateway: paymentMethod === 'online' ? (formData.paymentMethod as 'momo' | 'vnpay' | 'card') : undefined,
+                        shipping_info: { ...shippingInfo, shipping_fee: shipping },
+                        voucher_code: appliedVoucher?.code,
+                        discount_amount: appliedVoucher?.discount_amount,
+                    }),
                 });
-                console.log('Cart order result:', result);
-                order = result.data;
-                orderError = result.error;
+                const json = await res.json();
+                console.log('Cart order result:', json);
+                order = json.order ?? null;
+                orderError = json.error ? new Error(json.error) : null;
             }
 
             if (orderError || !order) {
