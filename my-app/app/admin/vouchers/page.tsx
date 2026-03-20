@@ -43,7 +43,17 @@ const emptyForm = {
 
 function formatDate(dateStr: string | null) {
     if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleDateString("vi-VN");
+    return new Intl.DateTimeFormat("vi-VN", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", hour12: false,
+        timeZone: "Asia/Ho_Chi_Minh",
+    }).format(new Date(dateStr));
+}
+
+// datetime-local trả về "YYYY-MM-DDTHH:MM" không có timezone → gắn +07:00 để lưu đúng giờ VN
+function toVietnamISO(localDatetime: string): string | null {
+    if (!localDatetime) return null;
+    return localDatetime + ":00+07:00";
 }
 
 export default function VouchersPage() {
@@ -85,8 +95,8 @@ export default function VouchersPage() {
             applies_to: form.applies_to,
             min_order_amount: Number(form.min_order_amount) || 0,
             max_uses: form.max_uses ? Number(form.max_uses) : null,
-            starts_at: form.starts_at || null,
-            expires_at: form.expires_at || null,
+            starts_at: toVietnamISO(form.starts_at),
+            expires_at: toVietnamISO(form.expires_at),
             is_active: true,
         });
 
@@ -176,8 +186,8 @@ export default function VouchersPage() {
             applies_to: form.applies_to,
             min_order_amount: Number(form.min_order_amount) || 0,
             max_uses: form.max_uses ? Number(form.max_uses) : null,
-            starts_at: form.starts_at || null,
-            expires_at: form.expires_at || null,
+            starts_at: toVietnamISO(form.starts_at),
+            expires_at: toVietnamISO(form.expires_at),
         }).eq("id", editingVoucher.id);
 
         setSaving(false);
