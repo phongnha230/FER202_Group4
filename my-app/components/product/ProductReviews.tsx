@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Star, ThumbsUp, Loader2 } from 'lucide-react';
+import { Star, ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getProductReviews, updateReview, deleteReview } from '@/lib/api/review.api';
+import { getProductReviews, updateReview, deleteReview, addReaction } from '@/lib/api/review.api';
 import { ReviewWithUser } from '@/types/review.type';
 import { useUserStore } from '@/store/user.store';
 
@@ -57,6 +57,35 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
     const { user, isAuthenticated } = useUserStore();
+    const [reactingId, setReactingId] = useState<string | null>(null);
+
+    const handleReaction = async (reviewId: string, type: 'helpful' | 'not_helpful') => {
+        if (!isAuthenticated || !user) {
+            alert('Vui lòng đăng nhập để đánh giá review này');
+            return;
+        }
+        setReactingId(reviewId);
+        await addReaction(user.id, { review_id: reviewId, reaction_type: type });
+        // Optimistic update
+        setReviews((prev) =>
+            prev.map((r) => {
+                if (r.id !== reviewId) return r;
+                const prev_reaction = r.user_reaction;
+                const same = prev_reaction === type;
+                const helpful_delta =
+                    type === 'helpful' ? (same ? -1 : prev_reaction === 'helpful' ? -1 : 1) : (prev_reaction === 'helpful' ? -1 : 0);
+                const not_helpful_delta =
+                    type === 'not_helpful' ? (same ? -1 : prev_reaction === 'not_helpful' ? -1 : 1) : (prev_reaction === 'not_helpful' ? -1 : 0);
+                return {
+                    ...r,
+                    helpful_count: (r.helpful_count || 0) + helpful_delta,
+                    not_helpful_count: (r.not_helpful_count || 0) + not_helpful_delta,
+                    user_reaction: same ? null : type,
+                };
+            })
+        );
+        setReactingId(null);
+    };
 
     useEffect(() => {
         async function loadReviews() {
@@ -362,10 +391,22 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
                                     </div>
                                 )}
 
-                                <div className="flex items-center gap-4">
-                                    <button className="flex items-center gap-1 text-xs text-gray-500 hover:text-black transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => handleReaction(review.id, 'helpful')}
+                                        disabled={reactingId === review.id}
+                                        className={`flex items-center gap-1 text-xs transition-colors ${review.user_reaction === 'helpful' ? 'text-black font-semibold' : 'text-gray-500 hover:text-black'}`}
+                                    >
                                         <ThumbsUp className="w-3 h-3" />
-                                        Helpful
+                                        Helpful {(review.helpful_count || 0) > 0 && `(${review.helpful_count})`}
+                                    </button>
+                                    <button
+                                        onClick={() => handleReaction(review.id, 'not_helpful')}
+                                        disabled={reactingId === review.id}
+                                        className={`flex items-center gap-1 text-xs transition-colors ${review.user_reaction === 'not_helpful' ? 'text-black font-semibold' : 'text-gray-500 hover:text-black'}`}
+                                    >
+                                        <ThumbsDown className="w-3 h-3" />
+                                        Not helpful {(review.not_helpful_count || 0) > 0 && `(${review.not_helpful_count})`}
                                     </button>
                                 </div>
                             </div>
