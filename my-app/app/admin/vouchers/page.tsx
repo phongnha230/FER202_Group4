@@ -23,6 +23,7 @@ interface Voucher {
     min_order_amount: number;
     max_uses: number | null;
     used_count: number;
+    starts_at: string | null;
     expires_at: string | null;
     is_active: boolean;
     created_at: string;
@@ -36,6 +37,7 @@ const emptyForm = {
     applies_to: "order" as "order" | "shipping",
     min_order_amount: "",
     max_uses: "",
+    starts_at: "",
     expires_at: "",
 };
 
@@ -83,6 +85,7 @@ export default function VouchersPage() {
             applies_to: form.applies_to,
             min_order_amount: Number(form.min_order_amount) || 0,
             max_uses: form.max_uses ? Number(form.max_uses) : null,
+            starts_at: form.starts_at || null,
             expires_at: form.expires_at || null,
             is_active: true,
         });
@@ -151,7 +154,8 @@ export default function VouchersPage() {
             applies_to: v.applies_to,
             min_order_amount: v.min_order_amount > 0 ? String(v.min_order_amount) : "",
             max_uses: v.max_uses !== null ? String(v.max_uses) : "",
-            expires_at: v.expires_at ? v.expires_at.split("T")[0] : "",
+            starts_at: v.starts_at ? v.starts_at.slice(0, 16) : "",
+            expires_at: v.expires_at ? v.expires_at.slice(0, 16) : "",
         });
         setShowForm(true);
         setFormError(null);
@@ -172,6 +176,7 @@ export default function VouchersPage() {
             applies_to: form.applies_to,
             min_order_amount: Number(form.min_order_amount) || 0,
             max_uses: form.max_uses ? Number(form.max_uses) : null,
+            starts_at: form.starts_at || null,
             expires_at: form.expires_at || null,
         }).eq("id", editingVoucher.id);
 
@@ -281,9 +286,17 @@ export default function VouchersPage() {
                             />
                         </div>
                         <div>
-                            <label className="text-xs font-medium text-slate-600 mb-1 block">Ngày hết hạn</label>
+                            <label className="text-xs font-medium text-slate-600 mb-1 block">Thời gian bắt đầu</label>
                             <Input
-                                type="date"
+                                type="datetime-local"
+                                value={form.starts_at}
+                                onChange={(e) => setForm({ ...form, starts_at: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-slate-600 mb-1 block">Thời gian kết thúc</label>
+                            <Input
+                                type="datetime-local"
                                 value={form.expires_at}
                                 onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
                             />
@@ -322,7 +335,7 @@ export default function VouchersPage() {
                             <TableHead className="font-semibold">Áp dụng cho</TableHead>
                             <TableHead className="font-semibold">Đơn tối thiểu</TableHead>
                             <TableHead className="font-semibold">Đã dùng</TableHead>
-                            <TableHead className="font-semibold">Hết hạn</TableHead>
+                            <TableHead className="font-semibold">Thời gian hiệu lực</TableHead>
                             <TableHead className="font-semibold">Trạng thái</TableHead>
                             <TableHead />
                         </TableRow>
@@ -372,7 +385,10 @@ export default function VouchersPage() {
                                             <span className="text-slate-400"> / {v.max_uses}</span>
                                         )}
                                     </TableCell>
-                                    <TableCell className="text-slate-600">{formatDate(v.expires_at)}</TableCell>
+                                    <TableCell className="text-slate-600 text-xs">
+                                        <div>{v.starts_at ? <span>Từ: {formatDate(v.starts_at)}</span> : <span className="text-slate-400">Từ: ngay lập tức</span>}</div>
+                                        <div>{v.expires_at ? <span>Đến: {formatDate(v.expires_at)}</span> : <span className="text-slate-400">Đến: không giới hạn</span>}</div>
+                                    </TableCell>
                                     <TableCell>
                                         <Badge variant={v.is_active ? "default" : "secondary"}>
                                             {v.is_active ? "Đang hoạt động" : "Đã tắt"}

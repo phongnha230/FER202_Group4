@@ -24,6 +24,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Mã voucher không hợp lệ hoặc đã hết hạn' }, { status: 404 });
     }
 
+    // Kiểm tra chưa bắt đầu
+    if (voucher.starts_at && new Date(voucher.starts_at) > new Date()) {
+      return NextResponse.json({ error: 'Mã voucher chưa có hiệu lực' }, { status: 400 });
+    }
+
     // Kiểm tra hết hạn
     if (voucher.expires_at && new Date(voucher.expires_at) < new Date()) {
       return NextResponse.json({ error: 'Mã voucher đã hết hạn' }, { status: 400 });
