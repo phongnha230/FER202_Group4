@@ -35,8 +35,10 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // fetching user from supabase
-  const { data: { user } } = await supabase.auth.getUser()
+  // Use getSession() to read from cookies directly (no network call)
+  // getUser() requires a Supabase API call which can fail and incorrectly redirect logged-in users
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user
 
   const path = request.nextUrl.pathname;
 
