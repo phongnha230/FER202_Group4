@@ -17,11 +17,14 @@ export async function POST(request: NextRequest) {
       .from('vouchers')
       .select('*')
       .eq('code', code.toUpperCase().trim())
-      .eq('is_active', true)
       .single();
 
     if (error || !voucher) {
-      return NextResponse.json({ error: 'Mã voucher không hợp lệ hoặc đã hết hạn' }, { status: 404 });
+      return NextResponse.json({ error: 'Mã voucher không tồn tại' }, { status: 404 });
+    }
+
+    if (!voucher.is_active) {
+      return NextResponse.json({ error: 'Mã voucher đã bị vô hiệu hóa' }, { status: 400 });
     }
 
     // Kiểm tra chưa bắt đầu
