@@ -336,9 +336,39 @@ ${productContext}
 
     await insertMessage(sid, userId || null, 'ai', reply);
 
+    // Extract product slugs/IDs from AI reply and fetch accurate price + image from DB
+    const productUrlMatches = [...reply.matchAll(/\/product\/([a-zA-Z0-9_-]+)/g)];
+    const slugsOrIds = [...new Set(productUrlMatches.map((m) => m[1]))];
+
+    let suggestedProducts: Array<{
+      url: string;
+      imageUrl: string;
+      base_price: number;
+      sale_price: number | null;
+    }> = [];
+
+    if (slugsOrIds.length > 0) {
+      const orFilter = slugsOrIds.flatMap((s) => [`slug.eq.${s}`, `id.eq.${s}`]).join(',');
+      const { data: prods } = await supabaseAdmin
+        .from('products')
+        .select('id, name, slug, base_price, sale_price, image, product_images(image_url, is_main)')
+        .or(orFilter);
+
+      if (prods) {
+        suggestedProducts = prods.map((p) => {
+          const imgs = (p.product_images as { image_url: string; is_main: boolean }[]) || [];
+          const mainImg = imgs.find((i) => i.is_main) || imgs[0];
+          const imageUrl = mainImg?.image_url || p.image || '';
+          const url = p.slug ? `/product/${p.slug}` : `/product/${p.id}`;
+          return { url, imageUrl, base_price: p.base_price, sale_price: p.sale_price ?? null };
+        });
+      }
+    }
+
     return NextResponse.json({
       reply,
       sessionId: sid,
+      suggestedProducts,
     });
   } catch (err: unknown) {
     console.error('Chat API error:', err);

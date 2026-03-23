@@ -33,58 +33,72 @@ type ProductCardData = {
   salePrice?: number;
 };
 
-function extractProductCards(markdown: string): {
+type StoredProduct = {
+  url: string;
+  imageUrl: string;
+  base_price: number;
+  sale_price: number | null;
+};
+
+function extractProductCards(
+  markdown: string,
+  knownProducts?: StoredProduct[]
+): {
   cards: ProductCardData[];
   cleanedText: string;
 } {
   const normalized = markdown.replace(/\r\n/g, "\n");
   const linkRegex = /\[([^\]]+)\]\((\/product\/[^)\s]+)\)/g;
-  const imageRegex = /!\[[^\]]*]\(([^)\s]+)\)/g;
   const cards: ProductCardData[] = [];
   const seenUrls = new Set<string>();
+
+  const productMap = new Map<string, StoredProduct>();
+  for (const p of knownProducts ?? []) {
+    productMap.set(p.url, p);
+  }
 
   let linkMatch: RegExpExecArray | null;
   while ((linkMatch = linkRegex.exec(normalized)) !== null) {
     const [, rawName, rawUrl] = linkMatch;
     const url = rawUrl.trim();
-    if (!url || seenUrls.has(url)) {
-      continue;
-    }
+    if (!url || seenUrls.has(url)) continue;
 
-    const linkEnd = linkMatch.index + linkMatch[0].length;
-    const lookBehindStart = Math.max(0, linkMatch.index - 400);
-    const contextBeforeLink = normalized.slice(lookBehindStart, linkMatch.index);
-    const contextAfterLink = normalized.slice(linkEnd, linkEnd + 300);
-    const imageCandidates = [...contextBeforeLink.matchAll(imageRegex)];
-    const imageAfterCandidates = [...contextAfterLink.matchAll(imageRegex)];
-    const imageUrl =
-      imageCandidates.at(-1)?.[1]?.trim() ||
-      imageAfterCandidates.at(0)?.[1]?.trim();
-
-    // Extract price info from context around the link
-    const priceContext = contextBeforeLink.slice(-300) + contextAfterLink.slice(0, 200);
-    const salePricePattern = /\$(\d+(?:[.,]\d+)?)\s*\((?:giá gốc|giá ban đầu)\s*\$(\d+(?:[.,]\d+)?)\)/i;
-    const singlePricePattern = /\$(\d+(?:[.,]\d+)?)/;
-    let price: number | undefined;
-    let salePrice: number | undefined;
-    const saleMatch = salePricePattern.exec(priceContext);
-    if (saleMatch) {
-      salePrice = parseFloat(saleMatch[1].replace(",", "."));
-      price = parseFloat(saleMatch[2].replace(",", "."));
+    const known = productMap.get(url);
+    if (known) {
+      cards.push({
+        name: rawName.trim() || "View product",
+        url,
+        imageUrl: known.imageUrl || undefined,
+        price: known.base_price,
+        salePrice: known.sale_price ?? undefined,
+      });
     } else {
-      const priceMatch = singlePricePattern.exec(priceContext);
-      if (priceMatch) {
-        price = parseFloat(priceMatch[1].replace(",", "."));
+      // Fallback: parse from AI text (history messages without product data)
+      const linkEnd = linkMatch.index + linkMatch[0].length;
+      const lookBehindStart = Math.max(0, linkMatch.index - 400);
+      const contextBeforeLink = normalized.slice(lookBehindStart, linkMatch.index);
+      const contextAfterLink = normalized.slice(linkEnd, linkEnd + 300);
+      const imageRegex = /!\[[^\]]*]\(([^)\s]+)\)/g;
+      const imageCandidates = [...contextBeforeLink.matchAll(imageRegex)];
+      const imageAfterCandidates = [...contextAfterLink.matchAll(imageRegex)];
+      const imageUrl =
+        imageCandidates.at(-1)?.[1]?.trim() ||
+        imageAfterCandidates.at(0)?.[1]?.trim();
+      const priceContext = contextBeforeLink.slice(-300) + contextAfterLink.slice(0, 200);
+      const salePricePattern = /\$(\d+(?:[.,]\d+)?)\s*\((?:giá gốc|giá ban đầu)\s*\$(\d+(?:[.,]\d+)?)\)/i;
+      const singlePricePattern = /\$(\d+(?:[.,]\d+)?)/;
+      let price: number | undefined;
+      let salePrice: number | undefined;
+      const saleMatch = salePricePattern.exec(priceContext);
+      if (saleMatch) {
+        salePrice = parseFloat(saleMatch[1].replace(",", "."));
+        price = parseFloat(saleMatch[2].replace(",", "."));
+      } else {
+        const priceMatch = singlePricePattern.exec(priceContext);
+        if (priceMatch) price = parseFloat(priceMatch[1].replace(",", "."));
       }
+      cards.push({ name: rawName.trim() || "View product", url, imageUrl, price, salePrice });
     }
-
-    cards.push({
-      name: rawName.trim() || "View product",
-      url,
-      imageUrl,
-      price,
-      salePrice,
-    });
     seenUrls.add(url);
   }
 
@@ -101,7 +115,7 @@ function extractProductCards(markdown: string): {
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
+  const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string; products?: StoredProduct[] }[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -234,7 +248,7 @@ export default function ChatWidget() {
         return;
       }
 
-      setMessages((prev) => [...prev, { role: "ai", text: data.reply }]);
+      setMessages((prev) => [...prev, { role: "ai", text: data.reply, products: data.suggestedProducts ?? [] }]);
 
       if (data.sessionId && data.sessionId !== sessionId) {
         setSessionId(data.sessionId);
@@ -313,7 +327,7 @@ export default function ChatWidget() {
                       <p className="whitespace-pre-wrap">{m.text}</p>
                     ) : (
                       (() => {
-                        const { cards, cleanedText } = extractProductCards(m.text);
+                        const { cards, cleanedText } = extractProductCards(m.text, m.products);
 
                         return (
                           <div className="space-y-3">
