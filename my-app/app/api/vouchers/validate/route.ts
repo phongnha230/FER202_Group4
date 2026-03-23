@@ -34,9 +34,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Mã voucher đã hết hạn' }, { status: 400 });
     }
 
-    // Kiểm tra số lần dùng
+    // Kiểm tra số lần dùng toàn hệ thống
     if (voucher.max_uses !== null && voucher.used_count >= voucher.max_uses) {
       return NextResponse.json({ error: 'Mã voucher đã hết lượt sử dụng' }, { status: 400 });
+    }
+
+    // Kiểm tra user hiện tại đã dùng voucher này chưa
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { count } = await supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('voucher_code', voucher.code);
+      if (count && count > 0) {
+        return NextResponse.json({ error: 'Bạn đã sử dụng mã voucher này rồi' }, { status: 400 });
+      }
     }
 
     // Xác định base amount dựa trên applies_to
