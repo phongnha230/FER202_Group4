@@ -9,6 +9,14 @@ import {
   insertMessage,
 } from '@/services/chat.service';
 
+interface SuggestedProduct {
+  name: string;
+  url: string;
+  imageUrl: string;
+  base_price: number;
+  sale_price: number | null;
+}
+
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get('sessionId');
   const userId = req.nextUrl.searchParams.get('userId');
@@ -24,9 +32,10 @@ export async function GET(req: NextRequest) {
     }
 
     const messages = await getMessages(sessionId);
+    const hydratedMessages = await hydrateMessagesWithProducts(messages);
     return NextResponse.json({
       sessionId,
-      messages: messages.map((m) => ({ role: m.sender, text: m.message })),
+      messages: hydratedMessages,
     });
   }
 
@@ -39,9 +48,10 @@ export async function GET(req: NextRequest) {
   }
 
   const messages = await getMessages(latestSession.id);
+  const hydratedMessages = await hydrateMessagesWithProducts(messages);
   return NextResponse.json({
     sessionId: latestSession.id,
-    messages: messages.map((m) => ({ role: m.sender, text: m.message })),
+    messages: hydratedMessages,
   });
 }
 interface ProductRow {
@@ -55,6 +65,124 @@ interface ProductRow {
   status: string;
   product_variants?: { price: number; size: string; color: string; stock: number }[];
   product_images?: { image_url: string; is_main: boolean }[];
+}
+
+interface ProductLookupRow {
+  id: string;
+  name: string;
+  slug: string | null;
+  base_price: number;
+  sale_price: number | null;
+  image: string | null;
+  product_images?: { image_url: string; is_main: boolean }[];
+}
+
+const PRODUCT_URL_PATTERN = /\/product\/([a-zA-Z0-9_-]+)/g;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function extractProductUrlsFromText(text: string): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+
+  for (const match of text.matchAll(PRODUCT_URL_PATTERN)) {
+    const slugOrId = match[1]?.trim();
+    if (!slugOrId) continue;
+    const url = `/product/${slugOrId}`;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    urls.push(url);
+  }
+
+  return urls;
+}
+
+async function buildSuggestedProductsByMessages(aiMessages: string[]): Promise<SuggestedProduct[][]> {
+  const urlsPerMessage = aiMessages.map((text) => extractProductUrlsFromText(text));
+
+  const allIdsOrSlugs = new Set<string>();
+  for (const urls of urlsPerMessage) {
+    for (const url of urls) {
+      allIdsOrSlugs.add(url.replace('/product/', ''));
+    }
+  }
+
+  if (allIdsOrSlugs.size === 0) {
+    return aiMessages.map(() => []);
+  }
+
+  const slugValues = [...allIdsOrSlugs].filter((value) => !UUID_PATTERN.test(value));
+  const idValues = [...allIdsOrSlugs].filter((value) => UUID_PATTERN.test(value));
+  const orParts = [
+    ...slugValues.map((slug) => `slug.eq.${slug}`),
+    ...idValues.map((id) => `id.eq.${id}`),
+  ];
+
+  if (orParts.length === 0) {
+    return aiMessages.map(() => []);
+  }
+
+  const { data: products } = await supabaseAdmin
+    .from('products')
+    .select('id, name, slug, base_price, sale_price, image, product_images(image_url, is_main)')
+    .or(orParts.join(','));
+
+  const bySlug = new Map<string, ProductLookupRow>();
+  const byId = new Map<string, ProductLookupRow>();
+
+  for (const product of (products || []) as ProductLookupRow[]) {
+    byId.set(product.id, product);
+    if (product.slug) {
+      bySlug.set(product.slug, product);
+    }
+  }
+
+  return urlsPerMessage.map((urls) => {
+    const suggestions: SuggestedProduct[] = [];
+
+    for (const url of urls) {
+      const slugOrId = url.replace('/product/', '');
+      const product = UUID_PATTERN.test(slugOrId) ? byId.get(slugOrId) : bySlug.get(slugOrId);
+      if (!product) continue;
+
+      const images = product.product_images || [];
+      const mainImage = images.find((img) => img.is_main) || images[0];
+      const imageUrl = mainImage?.image_url || product.image || '';
+
+      suggestions.push({
+        name: product.name,
+        url,
+        imageUrl,
+        base_price: product.base_price,
+        sale_price: product.sale_price ?? null,
+      });
+    }
+
+    return suggestions;
+  });
+}
+
+async function hydrateMessagesWithProducts(messages: { sender: 'user' | 'ai'; message: string }[]) {
+  const aiIndexes: number[] = [];
+  const aiTexts: string[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    if (messages[i].sender === 'ai') {
+      aiIndexes.push(i);
+      aiTexts.push(messages[i].message);
+    }
+  }
+
+  const aiProducts = await buildSuggestedProductsByMessages(aiTexts);
+  const aiProductsByIndex = new Map<number, SuggestedProduct[]>();
+  for (let i = 0; i < aiIndexes.length; i++) {
+    aiProductsByIndex.set(aiIndexes[i], aiProducts[i] || []);
+  }
+
+  return messages.map((message, index) => ({
+    role: message.sender,
+    text: message.message,
+    suggestedProducts: message.sender === 'ai' ? aiProductsByIndex.get(index) || [] : [],
+  }));
 }
 
 function normalizeForMatch(text: string): string {
@@ -336,48 +464,7 @@ ${productContext}
 
     await insertMessage(sid, userId || null, 'ai', reply);
 
-    // Extract product slugs/IDs from AI reply and fetch accurate price + image from DB
-    const productUrlMatches = [...reply.matchAll(/\/product\/([a-zA-Z0-9_-]+)/g)];
-    const slugsOrIds = [...new Set(productUrlMatches.map((m) => m[1]))];
-
-    let suggestedProducts: Array<{
-      name: string;
-      url: string;
-      imageUrl: string;
-      base_price: number;
-      sale_price: number | null;
-    }> = [];
-
-    if (slugsOrIds.length > 0) {
-      const isUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
-      const slugValues = slugsOrIds.filter((s) => !isUUID(s));
-      const idValues = slugsOrIds.filter((s) => isUUID(s));
-      const orParts = [
-        ...slugValues.map((s) => `slug.eq.${s}`),
-        ...idValues.map((id) => `id.eq.${id}`),
-      ];
-      if (orParts.length === 0) orParts.push('slug.eq.__none__');
-
-      const { data: prods } = await supabaseAdmin
-        .from('products')
-        .select('id, name, slug, base_price, sale_price, image, product_images(image_url, is_main)')
-        .or(orParts.join(','));
-
-      if (prods) {
-        suggestedProducts = prods.map((p) => {
-          const imgs = (p.product_images as { image_url: string; is_main: boolean }[]) || [];
-          const mainImg = imgs.find((i) => i.is_main) || imgs[0];
-          const imageUrl = mainImg?.image_url || p.image || '';
-          // Use the URL format the AI actually used in its reply so productMap lookup always succeeds
-          const url = (p.slug && slugValues.includes(p.slug))
-            ? `/product/${p.slug}`
-            : idValues.includes(p.id)
-            ? `/product/${p.id}`
-            : p.slug ? `/product/${p.slug}` : `/product/${p.id}`;
-          return { name: p.name, url, imageUrl, base_price: p.base_price, sale_price: p.sale_price ?? null };
-        });
-      }
-    }
+    const [suggestedProducts] = await buildSuggestedProductsByMessages([reply]);
 
     return NextResponse.json({
       reply,
