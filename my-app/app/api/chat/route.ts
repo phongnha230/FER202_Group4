@@ -348,11 +348,19 @@ ${productContext}
     }> = [];
 
     if (slugsOrIds.length > 0) {
-      const orFilter = slugsOrIds.flatMap((s) => [`slug.eq.${s}`, `id.eq.${s}`]).join(',');
+      const isUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+      const slugValues = slugsOrIds.filter((s) => !isUUID(s));
+      const idValues = slugsOrIds.filter((s) => isUUID(s));
+      const orParts = [
+        ...slugValues.map((s) => `slug.eq.${s}`),
+        ...idValues.map((id) => `id.eq.${id}`),
+      ];
+      if (orParts.length === 0) orParts.push('slug.eq.__none__');
+
       const { data: prods } = await supabaseAdmin
         .from('products')
         .select('id, name, slug, base_price, sale_price, image, product_images(image_url, is_main)')
-        .or(orFilter);
+        .or(orParts.join(','));
 
       if (prods) {
         suggestedProducts = prods.map((p) => {
