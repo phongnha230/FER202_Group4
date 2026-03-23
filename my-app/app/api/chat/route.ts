@@ -341,6 +341,7 @@ ${productContext}
     const slugsOrIds = [...new Set(productUrlMatches.map((m) => m[1]))];
 
     let suggestedProducts: Array<{
+      name: string;
       url: string;
       imageUrl: string;
       base_price: number;
@@ -367,8 +368,13 @@ ${productContext}
           const imgs = (p.product_images as { image_url: string; is_main: boolean }[]) || [];
           const mainImg = imgs.find((i) => i.is_main) || imgs[0];
           const imageUrl = mainImg?.image_url || p.image || '';
-          const url = p.slug ? `/product/${p.slug}` : `/product/${p.id}`;
-          return { url, imageUrl, base_price: p.base_price, sale_price: p.sale_price ?? null };
+          // Use the URL format the AI actually used in its reply so productMap lookup always succeeds
+          const url = (p.slug && slugValues.includes(p.slug))
+            ? `/product/${p.slug}`
+            : idValues.includes(p.id)
+            ? `/product/${p.id}`
+            : p.slug ? `/product/${p.slug}` : `/product/${p.id}`;
+          return { name: p.name, url, imageUrl, base_price: p.base_price, sale_price: p.sale_price ?? null };
         });
       }
     }

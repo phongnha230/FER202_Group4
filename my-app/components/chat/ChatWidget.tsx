@@ -34,6 +34,7 @@ type ProductCardData = {
 };
 
 type StoredProduct = {
+  name: string;
   url: string;
   imageUrl: string;
   base_price: number;
@@ -66,7 +67,8 @@ function extractProductCards(
     const known = productMap.get(url);
     if (known) {
       cards.push({
-        name: rawName.trim() || "View product",
+        // Use DB name to guarantee name and image always come from the same product record
+        name: known.name || rawName.trim() || "View product",
         url,
         imageUrl: known.imageUrl || undefined,
         price: known.base_price,
