@@ -187,10 +187,18 @@ export default function ChatWidget() {
 
         if (data?.messages?.length) {
           setMessages(
-            data.messages.map((m: { role: string; text: string }) => ({
-              role: m.role as "user" | "ai",
-              text: m.text,
-            }))
+            data.messages.map(
+              (m: {
+                role: string;
+                text: string;
+                suggestedProducts?: StoredProduct[];
+                products?: StoredProduct[];
+              }) => ({
+                role: m.role as "user" | "ai",
+                text: m.text,
+                products: m.suggestedProducts ?? m.products ?? [],
+              })
+            )
           );
         } else {
           setMessages([]);
