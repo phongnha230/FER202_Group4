@@ -109,7 +109,8 @@ function OrderConfirmationContent() {
     const subtotal = order.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0;
     const shipping = subtotal > 150 ? 0 : 15.00;
     const taxes = subtotal * 0.08;
-    const total = order.total_price || (subtotal + shipping + taxes);
+    const discount = order.discount_amount || 0;
+    const total = order.total_price || (subtotal + shipping + taxes - discount);
 
     const displayItems = order.items || [];
 
@@ -181,6 +182,14 @@ function OrderConfirmationContent() {
                             <span className="text-gray-500">Taxes</span>
                             <span className="font-medium text-gray-900">${taxes.toFixed(2)}</span>
                         </div>
+                        {discount > 0 && (
+                            <div className="flex justify-between text-sm">
+                                <span className="text-green-600">
+                                    Discount{order.voucher_code ? ` (${order.voucher_code})` : ''}
+                                </span>
+                                <span className="font-medium text-green-600">-${discount.toFixed(2)}</span>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex justify-between items-baseline pt-2 border-t border-gray-100">

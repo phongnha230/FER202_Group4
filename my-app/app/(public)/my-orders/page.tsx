@@ -59,6 +59,8 @@ interface Order {
     paymentMethod: string;
     paymentStatus: string;
     shipping?: ShippingInfo;
+    voucherCode?: string | null;
+    discountAmount?: number | null;
 }
 
 interface Product {
@@ -192,6 +194,8 @@ export default function MyOrdersPage() {
                     paymentMethod: dbOrder.payment_method,
                     paymentStatus: dbOrder.payment_status,
                     shipping: shippingInfo,
+                    voucherCode: dbOrder.voucher_code,
+                    discountAmount: dbOrder.discount_amount,
                 };
             });
 
@@ -798,6 +802,14 @@ export default function MyOrdersPage() {
                                     <span className="min-w-0 text-muted-foreground">Tax</span>
                                     <span className="shrink-0 font-medium">${getTaxAmount(selectedOrder).toFixed(2)}</span>
                                 </div>
+                                {selectedOrder.discountAmount && selectedOrder.discountAmount > 0 && (
+                                    <div className="flex items-center justify-between gap-3 text-sm">
+                                        <span className="min-w-0 text-green-600">
+                                            Discount{selectedOrder.voucherCode ? ` (${selectedOrder.voucherCode})` : ''}
+                                        </span>
+                                        <span className="shrink-0 font-medium text-green-600">-${selectedOrder.discountAmount.toFixed(2)}</span>
+                                    </div>
+                                )}
                                 <div className="flex items-center justify-between border-t pt-2">
                                     <span className="font-bold">Total</span>
                                     <span className="shrink-0 text-xl font-bold">${selectedOrder.totalPrice.toFixed(2)}</span>

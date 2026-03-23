@@ -70,6 +70,8 @@ export interface Order {
   payment_status: 'paid' | 'unpaid';
   order_status: 'pending_payment' | 'paid' | 'processing' | 'shipping' | 'delivered' | 'completed' | 'cancelled' | 'returned';
   created_at: string;
+  voucher_code?: string | null;
+  discount_amount?: number | null;
 }
 
 export interface OrderItem {

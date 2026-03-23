@@ -24,6 +24,8 @@ export async function sendOrderEmail(
       id,
       user_id,
       total_price,
+      voucher_code,
+      discount_amount,
       items:order_items(
         quantity,
         price,
@@ -84,6 +86,8 @@ export async function sendOrderEmail(
   const itemSubtotal = items.reduce((sum, item) => sum + item.price, 0);
   const taxes = itemSubtotal * 0.08;
 
+  const orderAny = order as typeof order & { voucher_code?: string | null; discount_amount?: number | null };
+
   const emailData: OrderEmailData = {
     orderId: order.id,
     customerName,
@@ -96,6 +100,8 @@ export async function sendOrderEmail(
     receiverName,
     receiverAddress,
     receiverPhone,
+    voucherCode: orderAny.voucher_code,
+    discountAmount: orderAny.discount_amount,
   };
 
   if (type === 'order_placed') {

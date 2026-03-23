@@ -21,6 +21,8 @@ export interface OrderEmailData {
   receiverAddress: string;
   receiverPhone: string;
   cancelledBy?: 'user' | 'admin';
+  voucherCode?: string | null;
+  discountAmount?: number | null;
 }
 
 function formatMoney(value: number): string {
@@ -50,6 +52,8 @@ function buildOrderSummaryHtml(params: {
   dividerColor?: string;
   totalLabel?: string;
   totalColor?: string;
+  voucherCode?: string | null;
+  discountAmount?: number | null;
 }) {
   const {
     subtotal,
@@ -60,6 +64,8 @@ function buildOrderSummaryHtml(params: {
     dividerColor = '#eee',
     totalLabel = 'Tổng cộng',
     totalColor = '#111827',
+    voucherCode,
+    discountAmount,
   } = params;
 
   const shippingText = shippingFee > 0 ? formatMoney(shippingFee) : 'Miễn phí';
@@ -68,6 +74,13 @@ function buildOrderSummaryHtml(params: {
       <tr>
         <td style="padding: 6px 0; font-size: 14px; color: #555;">Thuế</td>
         <td style="padding: 6px 0; font-size: 14px; color: #555; text-align: right;">${formatMoney(taxes)}</td>
+      </tr>`
+    : '';
+  const discountRow = discountAmount && discountAmount > 0
+    ? `
+      <tr>
+        <td style="padding: 6px 0; font-size: 14px; color: #16a34a;">Giảm giá${voucherCode ? ` (${voucherCode})` : ''}</td>
+        <td style="padding: 6px 0; font-size: 14px; color: #16a34a; text-align: right;">-${formatMoney(discountAmount)}</td>
       </tr>`
     : '';
 
@@ -84,6 +97,7 @@ function buildOrderSummaryHtml(params: {
             <td style="padding: 6px 0; font-size: 14px; color: #555; text-align: right;">${shippingText}</td>
           </tr>
           ${taxRow}
+          ${discountRow}
           <tr>
             <td colspan="2" style="padding-top: 10px; border-bottom: 1px solid ${dividerColor};"></td>
           </tr>
@@ -133,6 +147,8 @@ function buildOrderPlacedHtml(data: OrderEmailData): string {
       shippingFee: data.shippingFee,
       taxes: data.taxes,
       total: data.totalPrice,
+      voucherCode: data.voucherCode,
+      discountAmount: data.discountAmount,
     })}
 
     <h3 style="margin-top: 24px;">Thông tin giao hàng</h3>
@@ -185,6 +201,8 @@ function buildOrderSuccessHtml(data: OrderEmailData): string {
       shippingFee: data.shippingFee,
       taxes: data.taxes,
       total: data.totalPrice,
+      voucherCode: data.voucherCode,
+      discountAmount: data.discountAmount,
     })}
 
     <h3 style="margin-top: 24px;">Địa chỉ giao hàng</h3>
@@ -236,6 +254,8 @@ function buildOrderDeliveredHtml(data: OrderEmailData): string {
       shippingFee: data.shippingFee,
       taxes: data.taxes,
       total: data.totalPrice,
+      voucherCode: data.voucherCode,
+      discountAmount: data.discountAmount,
     })}
 
     <h3 style="margin-top: 24px;">Địa chỉ giao hàng</h3>
@@ -301,6 +321,8 @@ function buildOrderCancelledHtml(data: OrderEmailData): string {
       dividerColor: '#fecaca',
       totalLabel: 'Tổng đơn hàng',
       totalColor: '#b91c1c',
+      voucherCode: data.voucherCode,
+      discountAmount: data.discountAmount,
     })}
 
     ${data.totalPrice > 0 ? `
