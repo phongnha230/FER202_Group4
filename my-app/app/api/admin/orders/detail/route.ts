@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
         payment_status,
         payment_method,
         created_at,
+        voucher_code,
+        discount_amount,
         profiles:user_id (
           full_name,
           phone,

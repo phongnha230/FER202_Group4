@@ -71,6 +71,8 @@ interface OrderDetail {
     payment_status: string;
     payment_method: string;
     created_at: string;
+    voucher_code: string | null;
+    discount_amount: number;
     customer: {
         full_name: string;
         phone: string;
@@ -146,6 +148,8 @@ interface OrderDetailQueryResult {
     payment_status: string;
     payment_method: string;
     created_at: string;
+    voucher_code: string | null;
+    discount_amount: number;
     profiles: ProfileResult | null;
     shipping_orders: ShippingOrderResult[] | ShippingOrderResult | null;
     order_items: OrderItemResult[];
@@ -261,6 +265,8 @@ export default function OrdersPage() {
                 payment_status: typedData.payment_status,
                 payment_method: typedData.payment_method,
                 created_at: typedData.created_at,
+                voucher_code: typedData.voucher_code || null,
+                discount_amount: typedData.discount_amount || 0,
                 customer: {
                     full_name: typedData.profiles?.full_name || 'Unknown',
                     phone: typedData.profiles?.phone || 'N/A',
@@ -793,7 +799,8 @@ export default function OrdersPage() {
                                 {(() => {
                                     const itemsSubtotal = selectedOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
                                     const shippingFee = selectedOrder.shipping?.shipping_fee || 0;
-                                    const taxAmount = Math.max(0, selectedOrder.total_price - itemsSubtotal - shippingFee);
+                                    const discount = selectedOrder.discount_amount || 0;
+                                    const taxAmount = Math.max(0, selectedOrder.total_price - itemsSubtotal - shippingFee + discount);
                                     return (
                                         <>
                                 <div className="flex items-center justify-between text-sm text-slate-300">
@@ -803,11 +810,17 @@ export default function OrdersPage() {
                                 <div className="flex items-center justify-between text-sm text-slate-300">
                                     <span>Shipping Fee</span>
                                     <span>
-                                        {shippingFee 
-                                            ? `$${shippingFee.toFixed(2)}` 
+                                        {shippingFee
+                                            ? `$${shippingFee.toFixed(2)}`
                                             : 'Free'}
                                     </span>
                                 </div>
+                                {discount > 0 && (
+                                <div className="flex items-center justify-between text-sm text-green-400">
+                                    <span>Discount ({selectedOrder.voucher_code})</span>
+                                    <span>-${discount.toFixed(2)}</span>
+                                </div>
+                                )}
                                 <div className="flex items-center justify-between text-sm text-slate-300">
                                     <span>Tax</span>
                                     <span>${taxAmount.toFixed(2)}</span>
